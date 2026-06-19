@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="অর্থসাথী — ব্যক্তিগত আয়-ব্যয়, অ্যাকাউন্ট, বাজেট, সঞ্চয়, বিনিয়োগ ও ঋণ ট্র্যাকিং।">
+<meta name="description" content="অর্থসাথী — অ্যাকাউন্ট, আয়-ব্যয়, বাজেট, সঞ্চয়, বিনিয়োগ, ঋণ ও দেনা-পাওনা ট্র্যাকিং।">
 <meta name="theme-color" content="#0b6e4f">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <meta property="og:title" content="অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা">
@@ -324,7 +324,7 @@ function monthKeyAgo(monthsBack){ const d=new Date(); const dt=new Date(d.getFul
 
 /* ---------- State ---------- */
 let S = null;
-const KEY='orthosathi_v4';
+const KEY='orthosathi_v5';
 
 function seed(){
   const aBank=id(), aWallet=id(), aCash=id();
@@ -388,6 +388,8 @@ function seed(){
     ],
     emergency:{ current:60000, monthsTarget:6, monthly:4000 },
     retirement:{ currentAge:30, retireAge:60, currentSavings:260000, monthlyContribution:8000, expectedReturn:8 },
+    lent:[],
+    movements:[],
     plan:{ appliedMonths:[] },
   };
 }
@@ -406,6 +408,8 @@ async function load(){
     (S.expenses||[]).forEach(x=>{ if(!x.account) x.account=a.id; });
   }
   if(!Array.isArray(S.transfers)) S.transfers=[];
+  if(!Array.isArray(S.movements)) S.movements=[];
+  if(!Array.isArray(S.lent)) S.lent=[];
   if(S.emergency && S.emergency.monthly===undefined) S.emergency.monthly = 0;
   (S.goals||[]).forEach(g=>{ if(g.monthly===undefined) g.monthly = 0; });
 }
@@ -426,8 +430,32 @@ function accBalance(idv){
   bal-=sum(S.expenses.filter(x=>x.account===idv),x=>x.amount);
   bal+=sum((S.transfers||[]).filter(t=>t.to===idv),t=>t.amount);
   bal-=sum((S.transfers||[]).filter(t=>t.from===idv),t=>t.amount);
+  // movements: contributions, loan payments, lending, borrowing
+  bal+=sum((S.movements||[]).filter(m=>m.account===idv && m.dir==='in'),m=>m.amount);
+  bal-=sum((S.movements||[]).filter(m=>m.account===idv && m.dir==='out'),m=>m.amount);
   return bal;
 }
+function lentTotal(){ return sum(S.lent||[],l=>l.balance); }
+
+/* ---------- Movement engine (links accounts <-> buckets) ----------
+   m: {id,date,account,amount,dir:'in'|'out',kind,ref,note}
+   kind: debt_pay | invest | goal | emergency | lend_repay | borrow | lend  */
+function adjustBucket(m, sign){
+  const amt=(m.amount||0)*sign;
+  if(m.kind==='debt_pay'){ const d=(S.debts||[]).find(x=>x.id===m.ref); if(d) d.balance-=amt; }
+  else if(m.kind==='invest'){ const i=(S.investments||[]).find(x=>x.id===m.ref); if(i) i.amount+=amt; }
+  else if(m.kind==='goal'){ const g=(S.goals||[]).find(x=>x.id===m.ref); if(g) g.saved+=amt; }
+  else if(m.kind==='emergency'){ if(S.emergency) S.emergency.current+=amt; }
+  else if(m.kind==='lend_repay'){ const l=(S.lent||[]).find(x=>x.id===m.ref); if(l) l.balance-=amt; }
+  // 'borrow' and 'lend' only move money in/out of the account; their bucket is created at the same time
+}
+function addMovement(m){ if(!S.movements)S.movements=[]; S.movements.push(m); adjustBucket(m,+1); }
+function removeMovement(mid){
+  const m=(S.movements||[]).find(x=>x.id===mid); if(!m) return;
+  adjustBucket(m,-1);
+  S.movements=S.movements.filter(x=>x.id!==mid);
+}
+function movementsForRef(refId){ return (S.movements||[]).filter(m=>m.ref===refId); }
 function liquidTotal(){ return sum(S.accounts||[],a=>accBalance(a.id)); }
 function accSelect(selId, selected){
   if(!(S.accounts||[]).length) return `<select id="${selId}"><option value="">অ্যাকাউন্ট নেই</option></select>`;
@@ -463,8 +491,9 @@ function totals(){
   const debtTotal = sum(S.debts,x=>x.balance);
   const goalSaved = sum(S.goals,x=>x.saved);
   const liquid = liquidTotal();
-  const netWorth = liquid + investTotal + S.retirement.currentSavings - debtTotal;
-  return {income,expense,ess,non,savings,rate,investTotal,debtTotal,goalSaved,liquid,netWorth};
+  const lent = lentTotal();
+  const netWorth = liquid + investTotal + S.retirement.currentSavings + lent - debtTotal;
+  return {income,expense,ess,non,savings,rate,investTotal,debtTotal,goalSaved,liquid,lent,netWorth};
 }
 
 /* Financial health score 0-100 */
@@ -883,6 +912,17 @@ function viewGoals(){
       <button class="btn" id="g-add">যোগ করুন</button>
     </div>
   </div>
+  ${S.goals.length?`<div class="card pad-lg" style="margin-bottom:16px">
+    <h3>লক্ষ্যে জমা দিন</h3>
+    <div class="form-row" style="margin-bottom:0">
+      <div class="field"><label>কোন লক্ষ্যে</label><select id="gc-goal">${S.goals.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="gc-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('gc-acc')}</div>
+      <div class="field sm"><label>তারিখ</label><input id="gc-date" type="date" value="${today()}"></div>
+      <button class="btn" id="gc-add">জমা দিন</button>
+    </div>
+    <div class="hint">জমা দিলে নির্বাচিত অ্যাকাউন্ট থেকে টাকা কাটবে এবং লক্ষ্যের জমা বাড়বে।</div>
+  </div>`:''}
   <div class="grid g-2">
     ${S.goals.length?S.goals.map(g=>{
       const pct=g.target>0?Math.min(100,g.saved/g.target*100):0;
@@ -925,6 +965,17 @@ function viewInvest(){
       <button class="btn" id="v-add">যোগ করুন</button>
     </div>
   </div>
+  ${S.investments.length?`<div class="card pad-lg" style="margin-bottom:16px">
+    <h3>বিনিয়োগে জমা দিন (যেমন মাসিক DPS)</h3>
+    <div class="form-row" style="margin-bottom:0">
+      <div class="field"><label>কোন বিনিয়োগে</label><select id="ic-inv">${S.investments.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('')}</select></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="ic-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('ic-acc')}</div>
+      <div class="field sm"><label>তারিখ</label><input id="ic-date" type="date" value="${today()}"></div>
+      <button class="btn" id="ic-add">জমা দিন</button>
+    </div>
+    <div class="hint">জমা দিলে নির্বাচিত অ্যাকাউন্ট থেকে টাকা কাটবে এবং বিনিয়োগের পরিমাণ বাড়বে।</div>
+  </div>`:''}
   <div class="grid g-2">
     <div class="card">
       <h3>সম্পদ বণ্টন · মোট ${bdt(total)}</h3>
@@ -965,6 +1016,7 @@ function viewEmergency(){
         <div class="field sm"><label>মাসিক বরাদ্দ (৳)</label><input id="ef-monthly" class="num" type="number" value="${S.emergency.monthly||0}"></div>
       </div>
       <div class="hint">চলতি মাসের অপরিহার্য খরচ <b class="num">${bdt(t.ess)}</b> অনুযায়ী লক্ষ্য হিসাব হয়। মাসিক বরাদ্দ পরিকল্পনায় ব্যবহৃত হয়।</div>
+      <button class="btn" id="ef-save" style="margin-top:14px">সংরক্ষণ করুন</button>
     </div>
     <div class="card pad-lg">
       <h3>অগ্রগতি</h3>
@@ -975,6 +1027,16 @@ function viewEmergency(){
       </div>
       ${monthsCovered>=S.emergency.monthsTarget?`<div class="alert good" style="margin-top:14px"><span class="ai">✓</span><div>চমৎকার! আপনার ইমারজেন্সি ফান্ড লক্ষ্য পূর্ণ।</div></div>`:`<div class="alert tip" style="margin-top:14px"><span class="ai">i</span><div>লক্ষ্যে পৌঁছাতে আরও <b>${bdt(Math.max(0,target-S.emergency.current))}</b> দরকার। ${(S.emergency.monthly||0)>0?'মাসিক ৳'+(S.emergency.monthly||0).toLocaleString('en-IN')+' হারে '+etaText(Math.max(0,target-S.emergency.current),S.emergency.monthly||0)+'।':'মাসিক বরাদ্দ যোগ করলে আনুমানিক সময় দেখা যাবে।'}</div></div>`}
     </div>
+  </div>
+  <div class="card pad-lg" style="margin-top:16px">
+    <h3>ইমারজেন্সি ফান্ডে জমা দিন</h3>
+    <div class="form-row" style="margin-bottom:0">
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="ec-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('ec-acc')}</div>
+      <div class="field sm"><label>তারিখ</label><input id="ec-date" type="date" value="${today()}"></div>
+      <button class="btn" id="ec-add">জমা দিন</button>
+    </div>
+    <div class="hint">জমা দিলে নির্বাচিত অ্যাকাউন্ট থেকে টাকা কাটবে এবং ইমারজেন্সি ফান্ড বাড়বে।</div>
   </div>`;
 }
 
@@ -1000,6 +1062,7 @@ function viewRetire(){
         <div class="field sm"><label>মাসিক জমা (৳)</label><input id="r-mon" class="num" type="number" value="${r.monthlyContribution}"></div>
         <div class="field sm"><label>প্রত্যাশিত রিটার্ন (%)</label><input id="r-ror" class="num" type="number" value="${r.expectedReturn}"></div></div>
       <div class="hint">গণনা আনুমানিক — মূল্যস্ফীতি ও বাজার পরিবর্তনশীল।</div>
+      <button class="btn" id="r-save" style="margin-top:6px">সংরক্ষণ করুন</button>
     </div>
     <div class="card pad-lg">
       <h3>${years} বছর পর সম্ভাব্য তহবিল</h3>
@@ -1015,34 +1078,94 @@ function viewRetire(){
    Debt
    ========================================================= */
 function viewDebt(){
-  const total=sum(S.debts,x=>x.balance);
+  const debtTotal=sum(S.debts,x=>Math.max(0,x.balance));
+  const lentT=lentTotal();
   const sorted=[...S.debts].filter(d=>d.balance>0).sort((a,b)=>b.rate-a.rate);
-  return topbar('ঋণ ব্যবস্থাপনা','উচ্চ-সুদের ঋণ দ্রুত পরিশোধই সবচেয়ে নিরাপদ বিনিয়োগ') +
-  (sorted.some(d=>d.rate>=20)?`<div class="alert danger"><span class="ai">!</span><div><b>উচ্চ-সুদের ঋণ।</b> অনিয়ন্ত্রিত উচ্চ-সুদের ক্রেডিট কার্ড ঋণ দ্রুত বেড়ে ক্রেডিট স্কোর ও ভবিষ্যৎ ঋণক্ষমতা মারাত্মক ক্ষতি করে।</div></div>`:'') +
-  `<div class="card pad-lg" style="margin-bottom:16px">
+  const accOpt = sel=>`<option value="">— প্রযোজ্য নয় —</option>${(S.accounts||[]).map(a=>`<option value="${a.id}"${a.id===sel?' selected':''}>${esc(a.name)}</option>`).join('')}`;
+
+  const debtCards = S.debts.length? S.debts.map(d=>{
+    const paid=sum(movementsForRef(d.id).filter(m=>m.kind==='debt_pay'),m=>m.amount);
+    const done=d.balance<=0;
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><div style="font-weight:600">${esc(d.name)}${d.rate>=20?' <span class="tag non" style="background:var(--neg-bg);color:var(--neg)">উচ্চ সুদ</span>':''}</div>
+          <div style="font-size:12px;color:var(--ink-3);margin-top:2px">সুদ ${d.rate}% · মাসিক কিস্তি ${bdt(d.minPayment)}</div></div>
+        <button class="del" data-del="debts" data-id="${d.id}">✕</button>
+      </div>
+      <div class="num" style="font-size:22px;font-weight:600;margin-top:12px;color:${done?'var(--pos)':'var(--ink)'}">${bdt(Math.max(0,d.balance))}<span style="font-size:12px;color:var(--ink-3);font-weight:400"> বকেয়া</span></div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:2px">এ পর্যন্ত পরিশোধ: <span class="num">${bdt(paid)}</span></div>
+      ${d.note?`<div class="rownote" style="margin-top:6px">${esc(d.note)}</div>`:''}
+      ${done?`<div class="alert good" style="margin-top:12px"><span class="ai">✓</span><div>এই ঋণ পরিশোধ সম্পন্ন।</div></div>`:`
+      <div class="form-row" style="margin:12px 0 0;align-items:end">
+        <div class="field sm"><label>কিস্তি (৳)</label><input id="pay-amt-${d.id}" class="num" type="number" value="${d.minPayment||''}" placeholder="0"></div>
+        <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('pay-acc-'+d.id)}</div>
+        <div class="field sm"><label>তারিখ</label><input id="pay-date-${d.id}" type="date" value="${today()}"></div>
+        <button class="btn" data-pay="${d.id}">পরিশোধ</button>
+      </div>`}
+    </div>`;
+  }).join('') : `<div class="card"><div class="empty">কোনো ঋণ নেই — দারুণ!</div></div>`;
+
+  const lentCards = (S.lent||[]).length? S.lent.map(l=>{
+    const got=sum(movementsForRef(l.id).filter(m=>m.kind==='lend_repay'),m=>m.amount);
+    const done=l.balance<=0;
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><div style="font-weight:600">${esc(l.person)}</div>
+          <div style="font-size:12px;color:var(--ink-3);margin-top:2px">দিয়েছি ${fmtDate(l.date)}</div></div>
+        <button class="del" data-del="lent" data-id="${l.id}">✕</button>
+      </div>
+      <div class="num" style="font-size:22px;font-weight:600;margin-top:12px;color:${done?'var(--pos)':'var(--ink)'}">${bdt(Math.max(0,l.balance))}<span style="font-size:12px;color:var(--ink-3);font-weight:400"> পাওনা</span></div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:2px">ফেরত পেয়েছি: <span class="num">${bdt(got)}</span></div>
+      ${l.note?`<div class="rownote" style="margin-top:6px">${esc(l.note)}</div>`:''}
+      ${done?`<div class="alert good" style="margin-top:12px"><span class="ai">✓</span><div>পুরো টাকা ফেরত পাওয়া হয়েছে।</div></div>`:`
+      <div class="form-row" style="margin:12px 0 0;align-items:end">
+        <div class="field sm"><label>ফেরত (৳)</label><input id="lr-amt-${l.id}" class="num" type="number" placeholder="0"></div>
+        <div class="field"><label>যে অ্যাকাউন্টে</label>${accSelect('lr-acc-'+l.id)}</div>
+        <div class="field sm"><label>তারিখ</label><input id="lr-date-${l.id}" type="date" value="${today()}"></div>
+        <button class="btn" data-lendrepay="${l.id}">ফেরত পেলাম</button>
+      </div>`}
+    </div>`;
+  }).join('') : `<div class="card"><div class="empty">কাউকে ধার দেননি।</div></div>`;
+
+  return topbar('ঋণ ও দেনা-পাওনা','ঋণ পরিশোধ ও ধার লেনদেন — সরাসরি অ্যাকাউন্টের সাথে যুক্ত') +
+  `<div class="grid g-2" style="margin-bottom:16px">
+    ${stat('আমার মোট ঋণ (দেনা)',bdt(debtTotal),'neg','যা আমি পরিশোধ করব',ICONS.debt,'var(--neg)','var(--neg-bg)')}
+    ${stat('মোট পাওনা',bdt(lentT),'pos','যা আমি ফেরত পাব',ICONS.coins,'var(--brand)','var(--brand-bg)')}
+  </div>` +
+  (sorted.some(d=>d.rate>=20)?`<div class="alert danger"><span class="ai">!</span><div><b>উচ্চ-সুদের ঋণ।</b> অনিয়ন্ত্রিত উচ্চ-সুদের ঋণ দ্রুত বেড়ে ক্রেডিট স্কোর ও ভবিষ্যৎ ঋণক্ষমতা মারাত্মক ক্ষতি করে।</div></div>`:'') +
+
+  `<h3 style="font-size:13px;color:var(--ink-2);margin:18px 0 10px">আমার ঋণ / দেনা (যা আমি পরিশোধ করব)</h3>
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <h3>নতুন ঋণ যোগ করুন</h3>
     <div class="form-row">
       <div class="field"><label>ঋণের নাম</label>${catSelect('d-name','debt','ঋণ নির্বাচন করুন')}</div>
       <div class="field sm"><label>বকেয়া (৳)</label><input id="d-bal" class="num" type="number" placeholder="0"></div>
       <div class="field sm"><label>সুদ (%/বছর)</label><input id="d-rate" class="num" type="number" placeholder="0"></div>
-      <div class="field sm"><label>ন্যূনতম কিস্তি (৳)</label><input id="d-min" class="num" type="number" placeholder="0"></div>
-      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="d-note" placeholder="যেমন: ব্যাংক / কিস্তির তারিখ"></div>
+      <div class="field sm"><label>মাসিক কিস্তি (৳)</label><input id="d-min" class="num" type="number" placeholder="0"></div>
+      <div class="field"><label>ধার নিলে টাকা যে অ্যাকাউন্টে এসেছে</label><select id="d-acc">${accOpt('')}</select></div>
+      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="d-note" placeholder="যেমন: কার কাছ থেকে / কিস্তির তারিখ"></div>
       <button class="btn" id="d-add">যোগ করুন</button>
     </div>
-    <table><thead><tr><th>তারিখ</th><th>ঋণ</th><th class="r">বকেয়া</th><th class="r">সুদ</th><th class="r">মাসিক সুদ</th><th></th></tr></thead><tbody>
-    ${S.debts.length?byDateDesc(S.debts).map(d=>`<tr>
-      <td class="num" style="color:var(--ink-3)">${fmtDate(d.date)}</td>
-      <td>${esc(d.name)}${d.rate>=20?' <span class="tag non" style="background:var(--neg-bg);color:var(--neg)">উচ্চ সুদ</span>':''}${noteCell(d.note)}</td>
-      <td class="r num">${bdt(d.balance)}</td>
-      <td class="r num ${d.rate>=20?'neg':''}">${d.rate}%</td>
-      <td class="r num">${bdt(d.balance*d.rate/100/12)}</td>
-      <td class="r"><button class="del" data-del="debts" data-id="${d.id}">✕</button></td>
-    </tr>`).join(''):`<tr><td colspan="6"><div class="empty">কোনো ঋণ নেই — দারুণ!</div></td></tr>`}
-    </tbody>
-    <tfoot><tr><td colspan="2" style="color:var(--ink-3)">মোট ঋণ</td><td class="r num" style="font-weight:600">${bdt(total)}</td><td colspan="3"></td></tr></tfoot></table>
+    <div class="hint">"টাকা যে অ্যাকাউন্টে এসেছে" বাছলে (যেমন কারো কাছ থেকে ধার নিলে) সেই অ্যাকাউন্টে টাকা যোগ হবে। ক্রেডিট কার্ড/পুরোনো ঋণ শুধু রেকর্ড করতে চাইলে "প্রযোজ্য নয়" রাখুন।</div>
   </div>
-  ${sorted.length?`<div class="card"><h3>পরিশোধ অগ্রাধিকার (অ্যাভাল্যান্স পদ্ধতি)</h3>
+  <div class="grid g-2" style="margin-bottom:8px">${debtCards}</div>
+  ${sorted.length?`<div class="card" style="margin-bottom:16px"><h3>পরিশোধ অগ্রাধিকার (অ্যাভাল্যান্স পদ্ধতি)</h3>
     <p style="font-size:13.5px;color:var(--ink-2);margin-bottom:10px">সর্বোচ্চ সুদের ঋণ আগে শেষ করলে মোট সুদ সবচেয়ে কম হয়:</p>
-    ${sorted.map((d,i)=>`<div class="kpi-mini"><span>${i+1}. ${d.name} <span style="color:var(--ink-3)">(${d.rate}%)</span></span><b>${bdt(d.balance)}</b></div>`).join('')}</div>`:''}`;
+    ${sorted.map((d,i)=>`<div class="kpi-mini"><span>${i+1}. ${esc(d.name)} <span style="color:var(--ink-3)">(${d.rate}%)</span></span><b>${bdt(d.balance)}</b></div>`).join('')}</div>`:''}
+
+  <h3 style="font-size:13px;color:var(--ink-2);margin:22px 0 10px">পাওনা / ধার দিয়েছি (যা আমি ফেরত পাব)</h3>
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <h3>নতুন ধার যোগ করুন</h3>
+    <div class="form-row" style="margin-bottom:0">
+      <div class="field"><label>কাকে দিলেন</label><input id="l-person" placeholder="ব্যক্তির নাম"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="l-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field"><label>যে অ্যাকাউন্ট থেকে দিলেন</label>${accSelect('l-acc')}</div>
+      <div class="field sm"><label>তারিখ</label><input id="l-date" type="date" value="${today()}"></div>
+      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="l-note" placeholder="যেমন: ফেরতের তারিখ"></div>
+      <button class="btn" id="l-add">যোগ করুন</button>
+    </div>
+  </div>
+  <div class="grid g-2">${lentCards}</div>`;
 }
 
 /* =========================================================
@@ -1188,13 +1311,7 @@ function viewPlan(){
     ${over
       ?`<div class="alert danger" style="margin-top:14px"><span class="ai">!</span><div>আপনার মাসিক বরাদ্দ সঞ্চয়ের চেয়ে <b>${bdt(-p.leftover)}</b> বেশি। বরাদ্দ কমান, অথবা ব্যয় কমিয়ে সঞ্চয় বাড়ান।</div></div>`
       :`<div class="alert good" style="margin-top:14px"><span class="ai">✓</span><div>পরিকল্পনা সঞ্চয়ের মধ্যেই আছে। অবশিষ্ট <b>${bdt(p.leftover)}</b> আরও কোনো লক্ষ্যে বা জরুরি তহবিলে রাখতে পারেন।</div></div>`}
-    <div style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      ${applied
-        ?`<button class="btn" disabled style="opacity:.55;cursor:default">✓ ${monthLabelCur()} মাসের বরাদ্দ জমা হয়েছে</button>`
-        :`<button class="btn" id="apply-plan"${p.allocated<=0?' disabled style="opacity:.55;cursor:default"':''}>এই মাসের বরাদ্দ জমা করুন</button>`}
-      <span class="hint" style="margin:0">এক ক্লিকে বরাদ্দকৃত টাকা ইমারজেন্সি ফান্ড, প্রতিটি লক্ষ্য ও রিটায়ারমেন্টের জমায় যোগ হবে।</span>
-    </div>
-    <div class="hint">মাসিক বরাদ্দ পরিবর্তন করতে যান: সঞ্চয় ও লক্ষ্য, ইমারজেন্সি ফান্ড, বা রিটায়ারমেন্ট পেজে।</div>
+    <div class="hint" style="margin-top:14px">টাকা আসলে জমা করতে সংশ্লিষ্ট পেজে যান — <b>সঞ্চয় ও লক্ষ্য</b>, <b>বিনিয়োগ</b> বা <b>ইমারজেন্সি ফান্ড</b> — সেখানে "জমা দিন" দিলে নির্বাচিত অ্যাকাউন্ট থেকে টাকা কাটবে। এই পেজটি শুধু আপনার মাসিক বরাদ্দ পরিকল্পনা দেখায়।</div>
   </div>`;
 }
 function applyPlan(){
@@ -1267,7 +1384,16 @@ function exportData(){
    Event binding
    ========================================================= */
 async function addAndSave(arrName,obj){ if(!Array.isArray(S[arrName]))S[arrName]=[]; S[arrName].push(obj); await save(); render(); }
-async function delItem(arrName,itemId){ if(!Array.isArray(S[arrName]))return; S[arrName]=S[arrName].filter(x=>x.id!==itemId); await save(); render(); }
+async function delItem(arrName,itemId){
+  if(arrName==='movements'){ removeMovement(itemId); await save(); render(); return; }
+  if(!Array.isArray(S[arrName]))return;
+  S[arrName]=S[arrName].filter(x=>x.id!==itemId);
+  // drop any account movements tied to a removed bucket item
+  if(['debts','investments','goals','lent'].includes(arrName)){
+    S.movements=(S.movements||[]).filter(m=>m.ref!==itemId);
+  }
+  await save(); render();
+}
 
 function bindView(){
   document.querySelectorAll('[data-del]').forEach(b=>{ b.onclick=()=>delItem(b.dataset.del,b.dataset.id); });
@@ -1337,20 +1463,64 @@ function bindView(){
     if(!n) return flash('v-name'); if(amt<=0) return flash('v-amt');
     addAndSave('investments',{id:id(),name:n,type:tp,amount:amt,risk:rk,date:today(),note:val('v-note')});
   });
-  on('d-add','onclick',()=>{
-    const n=resolveCat('d-name','debt'),bal=numv('d-bal'),rate=numv('d-rate'),mn=numv('d-min');
+  on('d-add','onclick',async()=>{
+    const n=resolveCat('d-name','debt'),bal=numv('d-bal'),rate=numv('d-rate'),mn=numv('d-min'),acc=val('d-acc');
     if(!n) return flash('d-name'); if(bal<=0) return flash('d-bal');
-    addAndSave('debts',{id:id(),name:n,balance:bal,rate:rate,minPayment:mn,date:today(),note:val('d-note')});
+    const did=id();
+    S.debts.push({id:did,name:n,balance:bal,rate:rate,minPayment:mn,date:today(),note:val('d-note')});
+    if(acc) addMovement({id:id(),date:today(),account:acc,amount:bal,dir:'in',kind:'borrow',ref:did,note:'ধার নেওয়া: '+n});
+    await save(); render();
   });
-
-  ['ef-cur','ef-months','ef-monthly'].forEach(k=>on(k,'onchange',async()=>{
+  // Debt installment payment (account-linked)
+  document.querySelectorAll('[data-pay]').forEach(b=>b.onclick=async()=>{
+    const did=b.dataset.pay, amt=numv('pay-amt-'+did), acc=val('pay-acc-'+did), date=val('pay-date-'+did)||today();
+    if(amt<=0){ flash('pay-amt-'+did); return; } if(!acc){ flash('pay-acc-'+did); return; }
+    addMovement({id:id(),date,account:acc,amount:amt,dir:'out',kind:'debt_pay',ref:did,note:'কিস্তি'});
+    await save(); render();
+  });
+  // Lend money (give) + receive repayment
+  on('l-add','onclick',async()=>{
+    const person=val('l-person'), amt=numv('l-amt'), acc=val('l-acc'), date=val('l-date')||today();
+    if(!person) return flash('l-person'); if(amt<=0) return flash('l-amt'); if(!acc) return flash('l-acc');
+    const lid=id();
+    S.lent.push({id:lid,person,balance:amt,account:acc,date,note:val('l-note')});
+    addMovement({id:id(),date,account:acc,amount:amt,dir:'out',kind:'lend',ref:lid,note:'ধার দেওয়া: '+person});
+    await save(); render();
+  });
+  document.querySelectorAll('[data-lendrepay]').forEach(b=>b.onclick=async()=>{
+    const lid=b.dataset.lendrepay, amt=numv('lr-amt-'+lid), acc=val('lr-acc-'+lid), date=val('lr-date-'+lid)||today();
+    if(amt<=0){ flash('lr-amt-'+lid); return; } if(!acc){ flash('lr-acc-'+lid); return; }
+    addMovement({id:id(),date,account:acc,amount:amt,dir:'in',kind:'lend_repay',ref:lid,note:'ফেরত'});
+    await save(); render();
+  });
+  // Deposits into investment / goal / emergency (from an account)
+  on('ic-add','onclick',async()=>{
+    const ref=val('ic-inv'), amt=numv('ic-amt'), acc=val('ic-acc'), date=val('ic-date')||today();
+    if(!ref){ return; } if(amt<=0) return flash('ic-amt'); if(!acc) return flash('ic-acc');
+    addMovement({id:id(),date,account:acc,amount:amt,dir:'out',kind:'invest',ref,note:'জমা'});
+    await save(); render();
+  });
+  on('gc-add','onclick',async()=>{
+    const ref=val('gc-goal'), amt=numv('gc-amt'), acc=val('gc-acc'), date=val('gc-date')||today();
+    if(!ref){ return; } if(amt<=0) return flash('gc-amt'); if(!acc) return flash('gc-acc');
+    addMovement({id:id(),date,account:acc,amount:amt,dir:'out',kind:'goal',ref,note:'জমা'});
+    await save(); render();
+  });
+  on('ec-add','onclick',async()=>{
+    const amt=numv('ec-amt'), acc=val('ec-acc'), date=val('ec-date')||today();
+    if(amt<=0) return flash('ec-amt'); if(!acc) return flash('ec-acc');
+    addMovement({id:id(),date,account:acc,amount:amt,dir:'out',kind:'emergency',ref:null,note:'জমা'});
+    await save(); render();
+  });
+  // Explicit Save buttons (settings sections)
+  on('ef-save','onclick',async()=>{
     S.emergency.current=numv('ef-cur'); S.emergency.monthsTarget=Math.max(1,numv('ef-months')||6); S.emergency.monthly=numv('ef-monthly');
     await save(); render();
-  }));
-  ['r-cur','r-ret','r-sav','r-mon','r-ror'].forEach(k=>on(k,'onchange',async()=>{
+  });
+  on('r-save','onclick',async()=>{
     S.retirement={currentAge:numv('r-cur'),retireAge:numv('r-ret'),currentSavings:numv('r-sav'),monthlyContribution:numv('r-mon'),expectedReturn:numv('r-ror')};
     await save(); render();
-  }));
+  });
   on('reset-btn','onclick',async()=>{ if(confirm('সব তথ্য মুছে যাবে। নিশ্চিত?')){ S=seed(); await save(); go('dash'); } });
 }
 function val(idn){const e=document.getElementById(idn);return e?String(e.value).trim():'';}
