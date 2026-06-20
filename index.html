@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="অর্থসাথী — AI কোচসহ পিন-সুরক্ষিত আয়-ব্যয়, অ্যাকাউন্ট, বাজেট, সঞ্চয়, বিনিয়োগ ও ঋণ ট্র্যাকিং।">
+<meta name="description" content="অর্থসাথী — AI কোচ ও রিমাইন্ডারসহ পিন-সুরক্ষিত ব্যক্তিগত অর্থ ব্যবস্থাপনা।">
 <meta name="theme-color" content="#0b6e4f">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <meta property="og:title" content="অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা">
-<meta property="og:description" content="AI কোচ, অ্যাকাউন্ট, আয়-ব্যয়, বাজেট, সঞ্চয়, বিনিয়োগ ও ঋণ — সব এক জায়গায়।">
+<meta property="og:description" content="AI কোচ, অ্যাকাউন্ট, বাজেট, সঞ্চয়, বিনিয়োগ, ঋণ ও রিমাইন্ডার — সব এক জায়গায়।">
 <meta property="og:type" content="website">
 <title>অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -277,6 +277,18 @@
   @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
   .lock-link{display:inline-block;margin-top:22px;font-size:12.5px;color:var(--side-ink-2);cursor:pointer;text-decoration:underline}
   body.locked{overflow:hidden}
+
+  /* Reminder banners */
+  .rmd{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;margin-bottom:14px;font-size:13.5px;border:1px solid}
+  .rmd .ai{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff}
+  .rmd-b{flex:1;line-height:1.5}
+  .rmd-act{display:flex;align-items:center;gap:8px;flex:none}
+  .rmd.warn{background:var(--warn-bg);border-color:#f0d9a8;color:#7a5713}
+  .rmd.warn .ai{background:var(--warn)}
+  .rmd.tip{background:var(--blue-bg);border-color:#bcdcea;color:#0d5a72}
+  .rmd.tip .ai{background:var(--blue)}
+  .rmd-x{background:none;border:none;font-size:18px;line-height:1;color:inherit;opacity:.5;cursor:pointer;padding:0 4px}
+  .rmd-x:hover{opacity:1}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -325,7 +337,7 @@ const Store = {
 
 /* ---------- App settings: PIN + balance privacy ---------- */
 const SKEY='orthosathi_settings';
-let SET={ pinHash:null, hideBalance:false };
+let SET={ pinHash:null, hideBalance:false, dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
 async function loadSettings(){ const s=await Store.get(SKEY); if(s) SET={...SET,...s}; }
 async function saveSettings(){ await Store.set(SKEY,SET); }
 function hashPin(p){ let h=2166136261>>>0; const str='orthosathi:'+p; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return 'p'+h.toString(36); }
@@ -336,6 +348,8 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function today(){ const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function dThisMonth(day){ const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(Math.min(day,28)); }
 function curMonthKey(){ const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
+function daysLeftInMonth(){ const d=new Date(); const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); return last-d.getDate(); }
+function hasEntryToday(){ const td=today(); return S.incomes.some(x=>x.date===td)||S.expenses.some(x=>x.date===td); }
 function inThisMonth(iso){ return iso ? iso.slice(0,7)===curMonthKey() : true; }
 function fmtDate(iso){
   if(!iso) return '—';
@@ -576,6 +590,7 @@ const ICONS={
   eye:`<svg viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z" ${_s}/><circle cx="10" cy="10" r="2.2" ${_s}/></svg>`,
   eyeoff:`<svg viewBox="0 0 20 20"><path d="M5 5.5C3.2 6.8 2 10 2 10s3 5 8 5c1.4 0 2.6-.3 3.7-.8M8.5 5.2C9 5.1 9.5 5 10 5c5 0 8 5 8 5s-.8 1.4-2.3 2.7" ${_s}/><path d="M3 3l14 14" ${_s}/></svg>`,
   lock:`<svg viewBox="0 0 20 20"><rect x="4.5" y="9" width="11" height="7.5" rx="1.5" ${_s}/><path d="M7 9V6.5a3 3 0 016 0V9" ${_s}/></svg>`,
+  bell:`<svg viewBox="0 0 20 20"><path d="M6 8a4 4 0 018 0c0 4 1.5 5 1.5 5h-11S6 12 6 8z" ${_s}/><path d="M8.5 16a1.5 1.5 0 003 0" ${_s}/></svg>`,
 };
 
 const PAGES = [
@@ -583,6 +598,7 @@ const PAGES = [
   {id:'coach', label:'AI আর্থিক কোচ', group:'overview'},
   {id:'plan', label:'মাসিক পরিকল্পনা', group:'overview'},
   {id:'compare', label:'মাসিক তুলনা', group:'overview'},
+  {id:'reminders', label:'রিমাইন্ডার', group:'overview'},
   {id:'accounts', label:'অ্যাকাউন্ট ও লেনদেন', group:'track'},
   {id:'income', label:'আয়', group:'track'},
   {id:'expense', label:'ব্যয়', group:'track'},
@@ -632,8 +648,8 @@ function topbar(title,sub){
 
 function render(){
   const v=document.getElementById('view');
-  v.innerHTML = ({
-    dash:viewDash, coach:viewCoach, plan:viewPlan, compare:viewCompare, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
+  v.innerHTML = reminderBanner() + ({
+    dash:viewDash, coach:viewCoach, plan:viewPlan, compare:viewCompare, reminders:viewReminders, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
     goals:viewGoals, invest:viewInvest, emergency:viewEmergency, retire:viewRetire,
     debt:viewDebt
   })[current]();
@@ -1712,10 +1728,102 @@ function bindView(){
   const _rf=document.getElementById('restore-file');
   on('restore-btn','onclick',()=>{ if(_rf) _rf.click(); });
   if(_rf) _rf.onchange=()=>{ if(_rf.files&&_rf.files[0]) restoreData(_rf.files[0]); };
+  // Reminder settings
+  on('rm-save','onclick',async()=>{ SET.dailyReminder=val('rm-daily')==='on'; SET.dailyTime=val('rm-time')||'21:00'; SET.dailyDismissedDate=''; await saveSettings(); render(); });
+  on('rm-backup-save','onclick',async()=>{ SET.backupReminder=val('rm-backup')==='on'; SET.backupDismissedMonth=''; await saveSettings(); render(); });
+  on('rm-ics','onclick',downloadICS);
+  on('rm-notif','onclick',enableNotif);
+  on('rm-wa','onclick',()=>{ window.open('https://wa.me/?text='+encodeURIComponent('অর্থসাথী রিমাইন্ডার: আজকের আয়-ব্যয় এন্ট্রি দিন। আর মাস শেষে ডেটা ব্যাকআপ করতে ভুলবেন না।'),'_blank'); });
+  // Reminder banners
+  on('rmd-backup','onclick',backupData);
+  on('rmd-backup-x','onclick',async()=>{ SET.backupDismissedMonth=curMonthKey(); await saveSettings(); render(); });
+  on('rmd-entry','onclick',()=>go('expense'));
+  on('rmd-daily-x','onclick',async()=>{ SET.dailyDismissedDate=today(); await saveSettings(); render(); });
 }
 function val(idn){const e=document.getElementById(idn);return e?String(e.value).trim():'';}
 function numv(idn){const e=document.getElementById(idn);return e?(parseFloat(e.value)||0):0;}
 function flash(idn){const e=document.getElementById(idn);if(e){e.style.borderColor='var(--neg)';setTimeout(()=>e.style.borderColor='',900);}}
+
+/* ---------- Reminders ---------- */
+function reminderBanner(){
+  let html='';
+  const dl=daysLeftInMonth();
+  if(SET.backupReminder && dl<=2 && SET.backupDismissedMonth!==curMonthKey()){
+    const msg = dl===0 ? 'আজ মাসের শেষ দিন' : `মাস শেষ হতে আর ${dl} দিন`;
+    html+=`<div class="rmd warn"><span class="ai">!</span><div class="rmd-b"><b>${msg} —</b> এই মাসের ডেটা ব্যাকআপ করে রাখুন।</div>
+      <div class="rmd-act"><button class="btn-sm" id="rmd-backup">ব্যাকআপ এখন</button><button class="rmd-x" id="rmd-backup-x" title="আজ না">×</button></div></div>`;
+  }
+  if(SET.dailyReminder && !hasEntryToday() && SET.dailyDismissedDate!==today()){
+    html+=`<div class="rmd tip"><span class="ai">i</span><div class="rmd-b">আজ এখনো কোনো আয়-ব্যয় এন্ট্রি দেননি — আজকের হিসাব যোগ করুন।</div>
+      <div class="rmd-act"><button class="btn-sm" id="rmd-entry">ব্যয় যোগ</button><button class="rmd-x" id="rmd-daily-x" title="আজ না">×</button></div></div>`;
+  }
+  return html;
+}
+function viewReminders(){
+  return topbar('রিমাইন্ডার','মাসিক ব্যাকআপ ও দৈনিক এন্ট্রির জন্য মনে করিয়ে দেবে') +
+  `<div class="card pad-lg" style="margin-bottom:16px">
+    <h3>দৈনিক এন্ট্রি রিমাইন্ডার</h3>
+    <div class="form-row" style="margin-bottom:0;align-items:end">
+      <div class="field sm"><label>চালু?</label><select id="rm-daily"><option value="on"${SET.dailyReminder?' selected':''}>হ্যাঁ</option><option value="off"${!SET.dailyReminder?' selected':''}>না</option></select></div>
+      <div class="field sm"><label>সময়</label><input id="rm-time" type="time" value="${SET.dailyTime||'21:00'}"></div>
+      <button class="btn" id="rm-save">সংরক্ষণ করুন</button>
+    </div>
+    <div class="hint">চালু থাকলে নির্ধারিত সময়ের পর অ্যাপ খুললে এবং আজ কোনো এন্ট্রি না থাকলে উপরে একটি রিমাইন্ডার দেখাবে।</div>
+  </div>
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <h3>মাস শেষের ব্যাকআপ রিমাইন্ডার</h3>
+    <div class="form-row" style="margin-bottom:0;align-items:end">
+      <div class="field sm"><label>চালু?</label><select id="rm-backup"><option value="on"${SET.backupReminder?' selected':''}>হ্যাঁ</option><option value="off"${!SET.backupReminder?' selected':''}>না</option></select></div>
+      <button class="btn" id="rm-backup-save">সংরক্ষণ করুন</button>
+    </div>
+    <div class="hint">চালু থাকলে মাস শেষের ২ দিন আগে থেকে ও শেষ দিনে অ্যাপ খুললে ব্যাকআপের রিমাইন্ডার দেখাবে।</div>
+  </div>
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <h3>ফোনের ক্যালেন্ডারে রিমাইন্ডার যোগ করুন ★</h3>
+    <p style="font-size:13.5px;color:var(--ink-2);margin-bottom:12px;line-height:1.7">সবচেয়ে নির্ভরযোগ্য উপায় — <b>অ্যাপ বন্ধ থাকলেও</b> ফোনের ক্যালেন্ডার ঠিক সময়ে নোটিফিকেশন দেবে। বাটনে চাপলে একটি ফাইল নামবে; সেটি খুললে Google/Apple ক্যালেন্ডারে রিমাইন্ডারগুলো যুক্ত হবে — <b>প্রতিদিন</b> এন্ট্রির জন্য (আপনার নির্ধারিত সময়ে) এবং <b>প্রতি মাসের ২৮ তারিখ ও শেষ দিনে</b> ব্যাকআপের জন্য।</p>
+    <button class="btn" id="rm-ics">${ICONS.cal} ক্যালেন্ডার রিমাইন্ডার ফাইল নামান</button>
+  </div>
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <h3>ব্রাউজার নোটিফিকেশন (ঐচ্ছিক)</h3>
+    <p style="font-size:13.5px;color:var(--ink-2);margin-bottom:12px">অনুমতি দিলে অ্যাপ/ট্যাব খোলা থাকা অবস্থায় নির্ধারিত সময়ে নোটিফিকেশন দেখাবে। (বন্ধ থাকলে কাজ করবে না — সেজন্য উপরের ক্যালেন্ডার পদ্ধতি ব্যবহার করুন।)</p>
+    <button class="btn-sm" id="rm-notif">${ICONS.bell} নোটিফিকেশন অনুমতি দিন</button>
+  </div>
+  <div class="card pad-lg">
+    <h3>হোয়াটসঅ্যাপে রিমাইন্ডার</h3>
+    <p style="font-size:13.5px;color:var(--ink-2);line-height:1.7">সরাসরি স্বয়ংক্রিয় হোয়াটসঅ্যাপ মেসেজ এই ওয়েব-অ্যাপ থেকে পাঠানো সম্ভব নয় — এর জন্য আলাদা সার্ভার বা পেইড সার্ভিস (WhatsApp Business API / Twilio) লাগে। ফ্রি ও সহজ বিকল্প হলো উপরের <b>ক্যালেন্ডার রিমাইন্ডার</b>। নিচের বাটন হোয়াটসঅ্যাপ খুলে একটি তৈরি করা মেসেজ দেখাবে, যা আপনি নিজের নম্বরে পাঠাতে পারবেন (স্বয়ংক্রিয় নয়)।</p>
+    <button class="btn-sm" id="rm-wa">হোয়াটসঅ্যাপে নিজেকে নোট পাঠান</button>
+  </div>`;
+}
+function downloadICS(){
+  const tp=(SET.dailyTime||'21:00').split(':'); const hh=pad(parseInt(tp[0]||21)), mm=pad(parseInt(tp[1]||0));
+  const n=new Date(); const y=n.getFullYear(), mo=pad(n.getMonth()+1);
+  const lastDay=pad(new Date(n.getFullYear(),n.getMonth()+1,0).getDate());
+  const dt=`${y}${mo}${pad(n.getDate())}`, stamp=`${dt}T000000`;
+  const ev=(uid,start,rrule,summary)=>['BEGIN:VEVENT',`UID:${uid}-${Date.now()}@orthosathi`,`DTSTAMP:${stamp}`,`DTSTART:${start}`,`RRULE:${rrule}`,`SUMMARY:${summary}`,'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY','DESCRIPTION:অর্থসাথী','END:VALARM','END:VEVENT'];
+  const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//OrthoSathi//Reminder//BN','CALSCALE:GREGORIAN',
+    ...ev('daily',`${dt}T${hh}${mm}00`,'FREQ=DAILY','অর্থসাথী: আজকের আয়-ব্যয় এন্ট্রি দিন'),
+    ...ev('bk28',`${y}${mo}28T200000`,'FREQ=MONTHLY;BYMONTHDAY=28','অর্থসাথী: মাস শেষের আগে — ডেটা ব্যাকআপ করুন'),
+    ...ev('bklast',`${y}${mo}${lastDay}T201500`,'FREQ=MONTHLY;BYMONTHDAY=-1','অর্থসাথী: আজ মাসের শেষ দিন — ব্যাকআপ নিশ্চিত করুন'),
+    'END:VCALENDAR'];
+  const blob=new Blob([L.join('\r\n')],{type:'text/calendar;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='orthosathi-reminders.ics';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+}
+function enableNotif(){
+  if(!('Notification' in window)){ alert('এই ব্রাউজারে নোটিফিকেশন সমর্থিত নয়।'); return; }
+  Notification.requestPermission().then(p=>{ if(p==='granted'){ SET.notifyEnabled=true; saveSettings(); try{ new Notification('অর্থসাথী',{body:'নোটিফিকেশন চালু হয়েছে।'}); }catch(e){} } });
+}
+function startReminderTimer(){
+  setInterval(()=>{ try{
+    if(!SET.dailyReminder || !SET.notifyEnabled) return;
+    if(!('Notification' in window) || Notification.permission!=='granted') return;
+    const now=new Date(); const hhmm=pad(now.getHours())+':'+pad(now.getMinutes());
+    if(hhmm===(SET.dailyTime||'21:00') && SET.lastNotifyDate!==today() && !hasEntryToday()){
+      SET.lastNotifyDate=today(); saveSettings();
+      new Notification('অর্থসাথী রিমাইন্ডার',{body:'আজকের আয়-ব্যয় এন্ট্রি দিতে ভুলবেন না।'});
+    }
+  }catch(e){} }, 30000);
+}
 
 /* ---------- Data backup / restore (file-based) ---------- */
 function backupData(){
@@ -1812,6 +1920,7 @@ document.addEventListener('keydown',e=>{
 (async function(){
   await load(); await loadSettings();
   renderNav(); render();
+  startReminderTimer();
   showLock(SET.pinHash ? 'enter' : 'set');
 })();
 </script>

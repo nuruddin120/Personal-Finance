@@ -1,0 +1,10 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Vercel
+.vercel
+
+# Dependencies (none required for this static site)
+node_modules
