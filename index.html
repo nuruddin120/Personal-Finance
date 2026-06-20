@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="অর্থসাথী — AI কোচ, রিমাইন্ডার ও ডার্ক মোডসহ পিন-সুরক্ষিত ব্যক্তিগত অর্থ ব্যবস্থাপনা।">
+<meta name="description" content="অর্থসাথী — AI কোচ, রিমাইন্ডার, বুকমার্ক ও ডার্ক মোডসহ পিন-সুরক্ষিত ব্যক্তিগত অর্থ ব্যবস্থাপনা।">
 <meta name="theme-color" content="#0b6e4f">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <meta property="og:title" content="অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা">
@@ -122,6 +122,10 @@
   }
   .nav button .ic{width:18px;height:18px;flex:none;display:grid;place-items:center;color:var(--side-ink-2)}
   .nav button .ic svg{width:17px;height:17px;display:block}
+  .nav button .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .favstar{flex:none;font-size:15px;color:var(--side-ink-2);opacity:.5;line-height:1;padding:1px 3px;border-radius:4px}
+  .favstar.on{color:#f4c84a;opacity:1}
+  .favstar:hover{opacity:1;background:rgba(255,255,255,.1)}
   .nav button:hover{background:rgba(255,255,255,.05);color:var(--side-ink)}
   .nav button:hover .ic{color:var(--side-ink)}
   .nav button.active{background:rgba(22,160,111,.16);color:#fff;border-left-color:var(--brand);font-weight:600}
@@ -373,7 +377,7 @@ const Store = {
 
 /* ---------- App settings: PIN + balance privacy ---------- */
 const SKEY='orthosathi_settings';
-let SET={ pinHash:null, hideBalance:false, theme:'light', dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
+let SET={ pinHash:null, hideBalance:false, theme:'light', favorites:['dash','expense','accounts'], dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
 function systemDark(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }catch(e){ return false; } }
 function effectiveDark(){ return SET.theme==='dark' || (SET.theme==='auto' && systemDark()); }
 function applyTheme(){ try{ document.documentElement.setAttribute('data-theme', effectiveDark()?'dark':'light'); }catch(e){} }
@@ -653,25 +657,53 @@ const PAGES = [
 const GROUPS = {overview:'',track:'রেকর্ড',grow:'গড়ে তুলুন',manage:'ব্যবস্থাপনা'};
 let current='dash';
 
+function navButton(p){
+  const b=document.createElement('button');
+  b.className=p.id===current?'active':'';
+  const starred=(SET.favorites||[]).includes(p.id);
+  b.innerHTML=`<span class="ic">${ICONS[p.id]||''}</span><span class="lbl">${p.label}</span><span class="favstar ${starred?'on':''}" title="${starred?'বুকমার্ক থেকে সরান':'বুকমার্কে যোগ করুন'}">${starred?'★':'☆'}</span>`;
+  b.onclick=()=>go(p.id);
+  const star=b.querySelector('.favstar');
+  if(star) star.onclick=(e)=>{ e.stopPropagation(); toggleFav(p.id); };
+  return b;
+}
+function toggleFav(pid){
+  if(!Array.isArray(SET.favorites)) SET.favorites=[];
+  const i=SET.favorites.indexOf(pid);
+  if(i>=0) SET.favorites.splice(i,1); else SET.favorites.push(pid);
+  saveSettings(); renderNav();
+}
 function renderNav(){
   const nav=document.getElementById('nav'); const mob=document.getElementById('mobnav');
   nav.innerHTML=''; mob.innerHTML='';
+  const favs=(SET.favorites||[]).map(idv=>PAGES.find(p=>p.id===idv)).filter(Boolean);
+
+  // Bookmarked section (top — one place, no scrolling)
+  if(favs.length){
+    const lab=document.createElement('div'); lab.className='nav-label'; lab.textContent='বুকমার্ক'; nav.appendChild(lab);
+    favs.forEach(p=>nav.appendChild(navButton(p)));
+    const sep=document.createElement('div'); sep.className='nav-sep'; nav.appendChild(sep);
+  }
+
+  // Full grouped list
   let lastGroup=null;
   PAGES.forEach(p=>{
     if(p.group!==lastGroup && GROUPS[p.group]){
-      const sep=document.createElement('div');sep.className='nav-label';sep.textContent=GROUPS[p.group];nav.appendChild(sep);
+      const s=document.createElement('div');s.className='nav-label';s.textContent=GROUPS[p.group];nav.appendChild(s);
     } else if(p.group!==lastGroup && lastGroup!==null){
-      const sep=document.createElement('div');sep.className='nav-sep';nav.appendChild(sep);
+      const s=document.createElement('div');s.className='nav-sep';nav.appendChild(s);
     }
     lastGroup=p.group;
-    const b=document.createElement('button');
-    b.className=p.id===current?'active':'';
-    b.innerHTML=`<span class="ic">${ICONS[p.id]||''}</span>${p.label}`;
-    b.onclick=()=>go(p.id);
-    nav.appendChild(b);
+    nav.appendChild(navButton(p));
+  });
+
+  // Mobile bar: favorites first so regular ones need no scrolling
+  const order=favs.concat(PAGES.filter(p=>!favs.includes(p)));
+  order.forEach(p=>{
     const mb=document.createElement('button');
     mb.className=p.id===current?'active':'';
-    mb.textContent=p.label; mb.onclick=()=>go(p.id);
+    mb.textContent=((SET.favorites||[]).includes(p.id)?'★ ':'')+p.label;
+    mb.onclick=()=>go(p.id);
     mob.appendChild(mb);
   });
 }
