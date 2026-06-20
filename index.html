@@ -950,13 +950,13 @@ function openAccount(accId){ viewAccountId=accId; acctFrom=''; acctTo=''; curren
 const MOVE_LABEL={debt_pay:'ঋণ কিস্তি পরিশোধ',invest:'বিনিয়োগে জমা',goal:'লক্ষ্যে জমা',emergency:'ইমারজেন্সি ফান্ডে জমা',lend:'ধার দিলেন',lend_repay:'ধার ফেরত পেলেন',borrow:'ধার নিলেন',invest_redeem:'বিনিয়োগ নগদায়ন'};
 function acctTransactions(accId){
   const out=[];
-  S.incomes.filter(x=>x.account===accId).forEach(x=>out.push({date:x.date,label:x.source||'আয়',sub:x.note||'',amt:x.amount}));
-  S.expenses.filter(x=>x.account===accId).forEach(x=>out.push({date:x.date,label:x.category||'ব্যয়',sub:x.note||'',amt:-x.amount}));
+  S.incomes.filter(x=>x.account===accId).forEach(x=>out.push({date:x.date,label:x.source||'আয়',sub:x.note||'',amt:x.amount,arr:'incomes',id:x.id}));
+  S.expenses.filter(x=>x.account===accId).forEach(x=>out.push({date:x.date,label:x.category||'ব্যয়',sub:x.note||'',amt:-x.amount,arr:'expenses',id:x.id}));
   (S.transfers||[]).forEach(t=>{
-    if(t.to===accId) out.push({date:t.date,label:'ট্রান্সফার (এসেছে)',sub:accName(t.from),amt:t.amount});
-    if(t.from===accId){ out.push({date:t.date,label:'ট্রান্সফার (পাঠানো)',sub:accName(t.to),amt:-t.amount}); if((t.charge||0)>0) out.push({date:t.date,label:'ট্রান্সফার চার্জ',sub:'',amt:-t.charge}); }
+    if(t.to===accId) out.push({date:t.date,label:'ট্রান্সফার (এসেছে)',sub:accName(t.from),amt:t.amount,arr:'transfers',id:t.id});
+    if(t.from===accId){ out.push({date:t.date,label:'ট্রান্সফার (পাঠানো)',sub:accName(t.to),amt:-t.amount,arr:'transfers',id:t.id}); if((t.charge||0)>0) out.push({date:t.date,label:'ট্রান্সফার চার্জ',sub:'',amt:-t.charge,arr:'',id:''}); }
   });
-  (S.movements||[]).filter(m=>m.account===accId).forEach(m=>out.push({date:m.date,label:MOVE_LABEL[m.kind]||'লেনদেন',sub:m.note||'',amt:(m.dir==='in'?1:-1)*m.amount}));
+  (S.movements||[]).filter(m=>m.account===accId).forEach(m=>out.push({date:m.date,label:MOVE_LABEL[m.kind]||'লেনদেন',sub:m.note||'',amt:(m.dir==='in'?1:-1)*m.amount,arr:'movements',id:m.id}));
   out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   return out;
 }
@@ -988,13 +988,15 @@ function viewAccountDetail(){
    </div>
    <div class="card pad-lg">
      <h3>${ranged?'নির্বাচিত সময়ের লেনদেন':'সর্বশেষ ১৫টি লেনদেন'}</h3>
-     <table><thead><tr><th>তারিখ</th><th>বিবরণ</th><th class="r">পরিমাণ</th></tr></thead><tbody>
+     <table><thead><tr><th>তারিখ</th><th>বিবরণ</th><th class="r">পরিমাণ</th><th></th></tr></thead><tbody>
      ${shown.length?shown.map(t=>`<tr>
        <td class="num" style="color:var(--ink-3)">${fmtDate(t.date)}</td>
        <td>${esc(t.label)}${t.sub?`<div class="rownote">${esc(t.sub)}</div>`:''}</td>
        <td class="r num ${t.amt>=0?'pos':'neg'}">${t.amt>=0?'+ ':'− '}${bdt(Math.abs(t.amt))}</td>
-     </tr>`).join(''):`<tr><td colspan="3"><div class="empty">এই সময়ে কোনো লেনদেন নেই।</div></td></tr>`}
+       <td class="r">${t.arr?`<button class="del" data-del="${t.arr}" data-id="${t.id}">✕</button>`:''}</td>
+     </tr>`).join(''):`<tr><td colspan="4"><div class="empty">এই সময়ে কোনো লেনদেন নেই।</div></td></tr>`}
      </tbody></table>
+     <div class="hint">যেকোনো লেনদেনের ডানপাশের ✕ চেপে সেটি মুছে ফেলা যাবে — ব্যালেন্স ও সংশ্লিষ্ট হিসাব সাথে সাথে আপডেট হবে।</div>
    </div>`;
 }
 
