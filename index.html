@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="অর্থসাথী — AI কোচ ও রিমাইন্ডারসহ পিন-সুরক্ষিত ব্যক্তিগত অর্থ ব্যবস্থাপনা।">
+<meta name="description" content="অর্থসাথী — AI কোচ, রিমাইন্ডার ও ডার্ক মোডসহ পিন-সুরক্ষিত ব্যক্তিগত অর্থ ব্যবস্থাপনা।">
 <meta name="theme-color" content="#0b6e4f">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <meta property="og:title" content="অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা">
@@ -15,22 +15,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f3f4f6;
-    --surface:#ffffff;
-    --surface-2:#fafbfc;
-    --ink:#0f1722;
-    --ink-2:#475467;
-    --ink-3:#98a2b3;
-    --line:#e4e7ec;
-    --line-2:#eef0f3;
+    color-scheme:light;
+    --bg:#eef1ee;
+    --surface:#fbfbf8;
+    --surface-2:#f4f5f1;
+    --ink:#283039;
+    --ink-2:#566070;
+    --ink-3:#8b94a1;
+    --line:#e3e4dd;
+    --line-2:#edeee8;
     --brand:#0b6e4f;
     --brand-d:#075138;
-    --brand-bg:#ecf5f0;
+    --brand-bg:#e9f3ed;
     --pos:#0b6e4f;
     --neg:#b42318;
-    --neg-bg:#fef3f2;
-    --warn:#b54708;
-    --warn-bg:#fffaeb;
+    --neg-bg:#fcf1ef;
+    --warn:#b05a07;
+    --warn-bg:#fbf6ea;
     --blue:#1849a9;
     --green:var(--brand);
     --gold:var(--warn);
@@ -40,15 +41,50 @@
     --radius-sm:5px;
     --mono:'IBM Plex Mono',ui-monospace,monospace;
     --body:'Noto Sans Bengali',system-ui,sans-serif;
-    --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.05);
-    --shadow-hover:0 4px 12px rgba(16,24,40,.08);
-    --blue-bg:#eef2fb;
+    --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
+    --shadow-hover:0 4px 12px rgba(16,24,40,.07);
+    --blue-bg:#edf1fa;
+    --gauge-track:#d3d9e0;
     --side:#0e1c17;
     --side-2:#0a1611;
     --side-ink:#e8efeb;
     --side-ink-2:#8ba79b;
     --side-line:#1d2f29;
   }
+  [data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#10151a;
+    --surface:#1a2027;
+    --surface-2:#222932;
+    --ink:#e7e9ec;
+    --ink-2:#a7b0bb;
+    --ink-3:#6c7682;
+    --line:#2b333c;
+    --line-2:#242b33;
+    --brand:#34c08f;
+    --brand-d:#27a87a;
+    --brand-bg:#15271f;
+    --pos:#3fc095;
+    --neg:#f0796e;
+    --neg-bg:#2a1916;
+    --warn:#e0a256;
+    --warn-bg:#271f12;
+    --blue:#6ba4f0;
+    --blue-bg:#152339;
+    --shadow:0 1px 2px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.3);
+    --shadow-hover:0 6px 18px rgba(0,0,0,.45);
+    --gauge-track:#39424d;
+    --side:#0c1410;
+    --side-2:#080f0c;
+    --side-ink:#e6efe9;
+    --side-ink-2:#86a397;
+    --side-line:#1a2823;
+  }
+  [data-theme="dark"] .alert.danger{color:var(--neg)}
+  [data-theme="dark"] .alert.good{color:var(--pos)}
+  [data-theme="dark"] .alert.tip{color:var(--warn)}
+  [data-theme="dark"] .rmd.warn{color:var(--warn)}
+  [data-theme="dark"] .rmd.tip{color:var(--blue)}
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
   body{
@@ -283,9 +319,9 @@
   .rmd .ai{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff}
   .rmd-b{flex:1;line-height:1.5}
   .rmd-act{display:flex;align-items:center;gap:8px;flex:none}
-  .rmd.warn{background:var(--warn-bg);border-color:#f0d9a8;color:#7a5713}
+  .rmd.warn{background:var(--warn-bg);border-color:var(--line);color:#7a5713}
   .rmd.warn .ai{background:var(--warn)}
-  .rmd.tip{background:var(--blue-bg);border-color:#bcdcea;color:#0d5a72}
+  .rmd.tip{background:var(--blue-bg);border-color:var(--line);color:#0d5a72}
   .rmd.tip .ai{background:var(--blue)}
   .rmd-x{background:none;border:none;font-size:18px;line-height:1;color:inherit;opacity:.5;cursor:pointer;padding:0 4px}
   .rmd-x:hover{opacity:1}
@@ -337,7 +373,10 @@ const Store = {
 
 /* ---------- App settings: PIN + balance privacy ---------- */
 const SKEY='orthosathi_settings';
-let SET={ pinHash:null, hideBalance:false, dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
+let SET={ pinHash:null, hideBalance:false, theme:'light', dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
+function systemDark(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }catch(e){ return false; } }
+function effectiveDark(){ return SET.theme==='dark' || (SET.theme==='auto' && systemDark()); }
+function applyTheme(){ try{ document.documentElement.setAttribute('data-theme', effectiveDark()?'dark':'light'); }catch(e){} }
 async function loadSettings(){ const s=await Store.get(SKEY); if(s) SET={...SET,...s}; }
 async function saveSettings(){ await Store.set(SKEY,SET); }
 function hashPin(p){ let h=2166136261>>>0; const str='orthosathi:'+p; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return 'p'+h.toString(36); }
@@ -591,6 +630,8 @@ const ICONS={
   eyeoff:`<svg viewBox="0 0 20 20"><path d="M5 5.5C3.2 6.8 2 10 2 10s3 5 8 5c1.4 0 2.6-.3 3.7-.8M8.5 5.2C9 5.1 9.5 5 10 5c5 0 8 5 8 5s-.8 1.4-2.3 2.7" ${_s}/><path d="M3 3l14 14" ${_s}/></svg>`,
   lock:`<svg viewBox="0 0 20 20"><rect x="4.5" y="9" width="11" height="7.5" rx="1.5" ${_s}/><path d="M7 9V6.5a3 3 0 016 0V9" ${_s}/></svg>`,
   bell:`<svg viewBox="0 0 20 20"><path d="M6 8a4 4 0 018 0c0 4 1.5 5 1.5 5h-11S6 12 6 8z" ${_s}/><path d="M8.5 16a1.5 1.5 0 003 0" ${_s}/></svg>`,
+  sun:`<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5" ${_s}/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4" ${_s}/></svg>`,
+  moon:`<svg viewBox="0 0 20 20"><path d="M16 11.5A6.5 6.5 0 018.5 4 6.5 6.5 0 1016 11.5z" ${_s}/></svg>`,
 };
 
 const PAGES = [
@@ -639,6 +680,7 @@ function go(pid){ current=pid; renderNav(); render(); window.scrollTo(0,0); }
 function topbar(title,sub){
   return `<div class="topbar"><div class="t-title"><h2>${title}</h2><p>${sub||''}</p></div>
     <div class="topbar-actions">
+      <button class="btn-sm" id="theme-btn" title="দ্রুত থিম পরিবর্তন">${effectiveDark()?ICONS.sun:ICONS.moon}${effectiveDark()?'লাইট':'ডার্ক'}</button>
       <button class="btn-sm" id="hide-btn" title="ব্যালেন্স লুকান/দেখান">${SET.hideBalance?ICONS.eyeoff:ICONS.eye}${SET.hideBalance?'দেখান':'লুকান'}</button>
       <button class="btn-sm" id="lock-btn" title="লক করুন">${ICONS.lock}</button>
       <button class="btn-sm" id="export-btn">${ICONS.download}এক্সেল</button>
@@ -683,7 +725,7 @@ function gaugeSVG(score){
   const r=53, c=2*Math.PI*r, frac=score/100;
   const col = score>=70?'var(--brand)':score>=45?'var(--warn)':'var(--neg)';
   return `<svg width="138" height="138" viewBox="0 0 138 138" class="gauge-svg">
-    <circle cx="69" cy="69" r="${r}" fill="none" stroke="#d3d9e0" stroke-width="10"/>
+    <circle cx="69" cy="69" r="${r}" fill="none" stroke="var(--gauge-track)" stroke-width="10"/>
     <circle cx="69" cy="69" r="${r}" fill="none" stroke="${col}" stroke-width="10"
       stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-frac)}"
       transform="rotate(-90 69 69)"/></svg>`;
@@ -760,6 +802,14 @@ function viewDash(){
       <div class="alert ${top.level}" style="align-items:flex-start;margin-top:12px;margin-bottom:0"><span class="ai">${coachIcon(top.level)}</span><div><div style="font-weight:600;margin-bottom:3px">${top.title}</div><div style="font-size:13px;line-height:1.55">${top.body}</div></div></div></div>`;})()}
   </div>
 
+  <div class="card" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+    <div><h3 style="margin:0">অ্যাপের চেহারা (থিম)</h3><p style="font-size:13px;color:var(--ink-3)">চোখের আরাম অনুযায়ী বেছে নিন। "অটো" দিলে রাতে ডিভাইস অনুযায়ী নিজে থেকে ডার্ক হবে।</p></div>
+    <div class="pillset" style="margin:0">
+      <button data-theme-opt="light" class="${SET.theme==='light'?'on':''}">☀ লাইট</button>
+      <button data-theme-opt="dark" class="${SET.theme==='dark'?'on':''}">☾ ডার্ক</button>
+      <button data-theme-opt="auto" class="${SET.theme==='auto'?'on':''}">অটো</button>
+    </div>
+  </div>
   <div class="card" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
     <div><h3 style="margin:0">নিরাপত্তা ও ডেটা</h3><p style="font-size:13px;color:var(--ink-3)">পিন পরিবর্তন করুন, অথবা সব তথ্য মুছে নতুন করে শুরু করুন।</p></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -1720,6 +1770,8 @@ function bindView(){
     await save(); render();
   });
   on('reset-btn','onclick',async()=>{ if(confirm('সব তথ্য মুছে যাবে। নিশ্চিত?')){ S=seed(); await save(); go('dash'); } });
+  on('theme-btn','onclick',async()=>{ SET.theme = effectiveDark()?'light':'dark'; applyTheme(); await saveSettings(); render(); });
+  document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
   on('hide-btn','onclick',async()=>{ SET.hideBalance=!SET.hideBalance; await saveSettings(); render(); });
   on('lock-btn','onclick',()=>{ if(SET.pinHash) showLock('enter'); else showLock('set'); });
   on('change-pin','onclick',()=>showLock('change'));
@@ -1919,6 +1971,8 @@ document.addEventListener('keydown',e=>{
 /* ---------- boot ---------- */
 (async function(){
   await load(); await loadSettings();
+  applyTheme();
+  try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(SET.theme==='auto'){ applyTheme(); render(); } }); }catch(e){}
   renderNav(); render();
   startReminderTimer();
   showLock(SET.pinHash ? 'enter' : 'set');
