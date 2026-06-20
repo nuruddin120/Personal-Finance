@@ -329,6 +329,15 @@
   .rmd.tip .ai{background:var(--blue)}
   .rmd-x{background:none;border:none;font-size:18px;line-height:1;color:inherit;opacity:.5;cursor:pointer;padding:0 4px}
   .rmd-x:hover{opacity:1}
+
+  /* Confirm modal */
+  .modal{position:fixed;inset:0;z-index:900;background:rgba(8,12,16,.55);display:grid;place-items:center;padding:20px}
+  .modal-card{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.3);padding:22px}
+  .modal-card h3{margin:0 0 6px;font-size:16px}
+  .modal-card p{font-size:13.5px;color:var(--ink-2);line-height:1.6;margin-bottom:14px}
+  .modal-chk{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2);margin-bottom:18px;cursor:pointer;user-select:none}
+  .modal-chk input{width:16px;height:16px;accent-color:var(--brand);cursor:pointer}
+  .modal-act{display:flex;gap:10px;justify-content:flex-end}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -377,7 +386,7 @@ const Store = {
 
 /* ---------- App settings: PIN + balance privacy ---------- */
 const SKEY='orthosathi_settings';
-let SET={ pinHash:null, hideBalance:false, theme:'light', favorites:['dash','expense','accounts'], dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
+let SET={ pinHash:null, hideBalance:false, hideCoach:false, theme:'light', favorites:['dash','expense','accounts'], dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
 function systemDark(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }catch(e){ return false; } }
 function effectiveDark(){ return SET.theme==='dark' || (SET.theme==='auto' && systemDark()); }
 function applyTheme(){ try{ document.documentElement.setAttribute('data-theme', effectiveDark()?'dark':'light'); }catch(e){} }
@@ -833,7 +842,11 @@ function viewDash(){
   <div class="grid g-3">
     ${miniCard('সম্পদ বিভাজন',[['নগদ ও ব্যাংক',bdt(t.liquid)],['বিনিয়োগ',bdt(t.investTotal)],['রিটায়ারমেন্ট জমা',bdt(S.retirement.currentSavings)],['ঋণ (বাদ)','− '+bdt(t.debtTotal)]])}
     ${miniCard('দায়',[['মোট ঋণ',bdt(t.debtTotal)],['ঋণের সংখ্যা',S.debts.filter(d=>d.balance>0).length+'টি'],['সর্বোচ্চ সুদ',(S.debts.length?Math.max(...S.debts.map(d=>d.rate)):0)+'%']])}
-    ${(function(){const top=coachInsights()[0];return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">AI কোচের পরামর্শ</h3><button class="btn-sm" id="goto-coach">${ICONS.goals}সব দেখুন</button></div>
+    ${(function(){
+      const head=`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">AI কোচের পরামর্শ</h3><button class="btn-sm" id="goto-coach">${ICONS.goals}সব দেখুন</button></div>`;
+      if(SET.hideCoach) return `<div class="card">${head}<div class="alert tip" style="align-items:center;margin-top:12px;margin-bottom:0"><span class="ai">${ICONS.lock}</span><div>গোপনীয়তার জন্য পরামর্শ লুকানো — কোচ পেজে গিয়ে পিন দিয়ে দেখুন।</div></div></div>`;
+      const top=coachInsights()[0];
+      return `<div class="card">${head}
       <div class="alert ${top.level}" style="align-items:flex-start;margin-top:12px;margin-bottom:0"><span class="ai">${coachIcon(top.level)}</span><div><div style="font-weight:600;margin-bottom:3px">${top.title}</div><div style="font-size:13px;line-height:1.55">${top.body}</div></div></div></div>`;})()}
   </div>
 
@@ -1583,21 +1596,32 @@ function coachInsights(){
 }
 function coachIcon(level){ return level==='danger'?'!':level==='good'?'✓':'i'; }
 function viewCoach(){
-  const ins=coachInsights();
+  const hidden=SET.hideCoach;
   const t=totals();
+  const ins=hidden?[]:coachInsights();
   return topbar('AI আর্থিক কোচ','আপনার তথ্য বিশ্লেষণ করে ব্যক্তিগত পরামর্শ') +
   `<div class="grid g-3" style="margin-bottom:16px">
     ${stat('সঞ্চয় হার',t.rate.toFixed(0)+'%',t.rate>=20?'pos':t.rate>=10?'':'neg','চলতি মাস',ICONS.plan,'var(--brand)','var(--brand-bg)')}
     ${stat('এ মাসের সঞ্চয়',bdt(t.savings),t.savings>=0?'pos':'neg','আয় − ব্যয়',ICONS.coins,'var(--blue)','var(--blue-bg)')}
-    ${stat('পরামর্শ',ins.length+'টি','','আপনার জন্য',ICONS.goals,'var(--warn)','var(--warn-bg)')}
+    ${stat('পরামর্শ',hidden?'লুকানো':coachInsights().length+'টি','','আপনার জন্য',ICONS.goals,'var(--warn)','var(--warn-bg)')}
   </div>
-  <div class="coach-list">
-    ${ins.map(m=>`<div class="alert ${m.level}" style="align-items:flex-start;margin-bottom:12px">
-      <span class="ai">${coachIcon(m.level)}</span>
-      <div><div style="font-weight:600;margin-bottom:3px">${m.title}</div><div style="font-size:13.5px;line-height:1.6">${m.body}</div></div>
-    </div>`).join('')}
-  </div>
-  <div class="hint">এই পরামর্শগুলো আপনার ইনপুট করা তথ্য (আয়, ব্যয়, বাজেট, ঋণ, লক্ষ্য) থেকে স্বয়ংক্রিয়ভাবে হিসাব করা — যত নিয়মিত তথ্য দেবেন, তত নিখুঁত হবে।</div>`;
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap">
+    <div style="font-weight:600;font-size:14px">পরামর্শসমূহ</div>
+    <button class="btn-sm" id="coach-hide">${hidden?ICONS.eyeoff+'পরামর্শ দেখান (পিন)':ICONS.eye+'পরামর্শ লুকান'}</button>
+  </div>` +
+  (hidden
+    ? `<div class="card" style="text-align:center;padding:38px 20px">
+        <span class="stat-badge" style="--c:var(--ink-3);--b:var(--surface-2);margin:0 auto 14px">${ICONS.lock}</span>
+        <div style="font-weight:600;margin-bottom:6px">পরামর্শ লুকানো আছে</div>
+        <div style="font-size:13px;color:var(--ink-3);max-width:300px;margin:0 auto">গোপনীয়তার জন্য AI কোচের পরামর্শ লুকানো। দেখতে উপরের "পরামর্শ দেখান" বাটনে চাপুন ও আপনার পিন দিন।</div>
+      </div>`
+    : `<div class="coach-list">
+        ${ins.map(m=>`<div class="alert ${m.level}" style="align-items:flex-start;margin-bottom:12px">
+          <span class="ai">${coachIcon(m.level)}</span>
+          <div><div style="font-weight:600;margin-bottom:3px">${m.title}</div><div style="font-size:13.5px;line-height:1.6">${m.body}</div></div>
+        </div>`).join('')}
+      </div>
+      <div class="hint">এই পরামর্শগুলো আপনার ইনপুট করা তথ্য (আয়, ব্যয়, বাজেট, ঋণ, লক্ষ্য) থেকে স্বয়ংক্রিয়ভাবে হিসাব করা — যত নিয়মিত তথ্য দেবেন, তত নিখুঁত হবে।</div>`);
 }
 
 /* =========================================================
@@ -1659,6 +1683,28 @@ function exportData(){
    Event binding
    ========================================================= */
 async function addAndSave(arrName,obj){ if(!Array.isArray(S[arrName]))S[arrName]=[]; S[arrName].push(obj); await save(); render(); }
+let deleteSnoozeUntil=0;
+function confirmDelete(onConfirm){
+  if(Date.now()<deleteSnoozeUntil){ onConfirm(); return; }
+  let el=document.getElementById('confirm-modal');
+  if(!el){ el=document.createElement('div'); el.id='confirm-modal'; el.className='modal'; document.body.appendChild(el); }
+  el.innerHTML=`<div class="modal-card">
+    <h3>মুছে ফেলবেন?</h3>
+    <p>এই তথ্যটি স্থায়ীভাবে মুছে যাবে — পরে আর ফিরে পাওয়া যাবে না।</p>
+    <label class="modal-chk"><input type="checkbox" id="cm-snooze"> পরবর্তী ২ মিনিট এই কাজের জন্য আর সতর্ক করবে না</label>
+    <div class="modal-act">
+      <button class="btn ghost" id="cm-cancel">বাতিল</button>
+      <button class="btn" id="cm-ok" style="background:var(--neg);border-color:var(--neg);color:#fff">মুছুন</button>
+    </div>
+  </div>`;
+  document.body.classList.add('locked');
+  const close=()=>{ el.remove(); document.body.classList.remove('locked'); };
+  document.getElementById('cm-cancel').onclick=close;
+  document.getElementById('cm-ok').onclick=()=>{
+    if(document.getElementById('cm-snooze').checked) deleteSnoozeUntil=Date.now()+120000;
+    close(); onConfirm();
+  };
+}
 async function delItem(arrName,itemId){
   if(arrName==='movements'){ removeMovement(itemId); await save(); render(); return; }
   if(!Array.isArray(S[arrName]))return;
@@ -1671,7 +1717,7 @@ async function delItem(arrName,itemId){
 }
 
 function bindView(){
-  document.querySelectorAll('[data-del]').forEach(b=>{ b.onclick=()=>delItem(b.dataset.del,b.dataset.id); });
+  document.querySelectorAll('[data-del]').forEach(b=>{ b.onclick=()=>confirmDelete(()=>delItem(b.dataset.del,b.dataset.id)); });
   const _ex=document.getElementById('export-btn'); if(_ex) _ex.onclick=exportData;
   const _gp=document.getElementById('goto-plan'); if(_gp) _gp.onclick=()=>go('plan');
   const _ap=document.getElementById('apply-plan'); if(_ap) _ap.onclick=()=>{ if(confirm('এই মাসের বরাদ্দকৃত টাকা ইমারজেন্সি ফান্ড, লক্ষ্য ও রিটায়ারমেন্টের জমায় যোগ হবে। নিশ্চিত?')) applyPlan(); };
@@ -1810,11 +1856,17 @@ function bindView(){
   document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
   on('hide-btn','onclick',async()=>{
     if(SET.hideBalance){ // currently hidden → reveal requires PIN
-      if(SET.pinHash){ showLock('reveal'); }
+      if(SET.pinHash){ revealWhat='balance'; showLock('reveal'); }
       else { SET.hideBalance=false; await saveSettings(); render(); }
     } else { // currently visible → hide immediately
       SET.hideBalance=true; await saveSettings(); render();
     }
+  });
+  on('coach-hide','onclick',async()=>{
+    if(SET.hideCoach){ // reveal requires PIN
+      if(SET.pinHash){ revealWhat='coach'; showLock('reveal'); }
+      else { SET.hideCoach=false; await saveSettings(); render(); }
+    } else { SET.hideCoach=true; await saveSettings(); render(); }
   });
   on('lock-btn','onclick',()=>{ if(SET.pinHash) showLock('enter'); else showLock('set'); });
   on('change-pin','onclick',()=>showLock('change'));
@@ -1943,11 +1995,11 @@ function restoreData(file){
 }
 
 /* ---------- PIN lock screen ---------- */
-let pinEntry='', pinTemp='', pinMode='enter';
+let pinEntry='', pinTemp='', pinMode='enter', revealWhat='balance';
 function pinDots(){ return `<div class="pin-dots" id="pin-dots">${[0,1,2,3].map(i=>`<i class="${i<pinEntry.length?'on':''}"></i>`).join('')}</div>`; }
 function lockMsg(){
   if(pinMode==='enter') return 'আপনার ৪-ডিজিট পিন দিন';
-  if(pinMode==='reveal') return 'ব্যালেন্স দেখাতে পিন দিন';
+  if(pinMode==='reveal') return revealWhat==='coach' ? 'পরামর্শ দেখাতে পিন দিন' : 'ব্যালেন্স দেখাতে পিন দিন';
   if(pinMode==='set'||pinMode==='change') return pinTemp? 'নিশ্চিত করতে আবার দিন' : 'নতুন ৪-ডিজিট পিন তৈরি করুন';
   return '';
 }
@@ -1994,7 +2046,7 @@ async function processPin(){
     return;
   }
   if(pinMode==='reveal'){
-    if(hashPin(pinEntry)===SET.pinHash){ SET.hideBalance=false; await saveSettings(); removeLock(); render(); }
+    if(hashPin(pinEntry)===SET.pinHash){ if(revealWhat==='coach') SET.hideCoach=false; else SET.hideBalance=false; await saveSettings(); removeLock(); render(); }
     else { pinEntry=''; const m=document.getElementById('lock-msg'); if(m){ m.textContent='ভুল পিন, আবার চেষ্টা করুন'; m.classList.add('lock-err'); } refreshDots(true); }
     return;
   }
