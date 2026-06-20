@@ -636,6 +636,8 @@ const ICONS={
   bell:`<svg viewBox="0 0 20 20"><path d="M6 8a4 4 0 018 0c0 4 1.5 5 1.5 5h-11S6 12 6 8z" ${_s}/><path d="M8.5 16a1.5 1.5 0 003 0" ${_s}/></svg>`,
   sun:`<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5" ${_s}/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4" ${_s}/></svg>`,
   moon:`<svg viewBox="0 0 20 20"><path d="M16 11.5A6.5 6.5 0 018.5 4 6.5 6.5 0 1016 11.5z" ${_s}/></svg>`,
+  star:`<svg viewBox="0 0 20 20"><path d="M10 2.5l2.3 4.9 5.2.6-3.9 3.6 1.1 5.2L10 14.8 5.2 16.9l1.1-5.2L2.5 8l5.2-.6z" ${_s}/></svg>`,
+  starfill:`<svg viewBox="0 0 20 20"><path d="M10 2.5l2.3 4.9 5.2.6-3.9 3.6 1.1 5.2L10 14.8 5.2 16.9l1.1-5.2L2.5 8l5.2-.6z" fill="#f4c84a" stroke="#f4c84a" stroke-width="1.3" stroke-linejoin="round"/></svg>`,
 };
 
 const PAGES = [
@@ -712,6 +714,7 @@ function go(pid){ current=pid; renderNav(); render(); window.scrollTo(0,0); }
 function topbar(title,sub){
   return `<div class="topbar"><div class="t-title"><h2>${title}</h2><p>${sub||''}</p></div>
     <div class="topbar-actions">
+      <button class="btn-sm" id="bookmark-btn" title="এই পেজ বুকমার্ক করুন">${(SET.favorites||[]).includes(current)?ICONS.starfill:ICONS.star}${(SET.favorites||[]).includes(current)?'বুকমার্কড':'বুকমার্ক'}</button>
       <button class="btn-sm" id="theme-btn" title="দ্রুত থিম পরিবর্তন">${effectiveDark()?ICONS.sun:ICONS.moon}${effectiveDark()?'লাইট':'ডার্ক'}</button>
       <button class="btn-sm" id="hide-btn" title="ব্যালেন্স লুকান/দেখান">${SET.hideBalance?ICONS.eyeoff:ICONS.eye}${SET.hideBalance?'দেখান':'লুকান'}</button>
       <button class="btn-sm" id="lock-btn" title="লক করুন">${ICONS.lock}</button>
@@ -1802,9 +1805,17 @@ function bindView(){
     await save(); render();
   });
   on('reset-btn','onclick',async()=>{ if(confirm('সব তথ্য মুছে যাবে। নিশ্চিত?')){ S=seed(); await save(); go('dash'); } });
+  on('bookmark-btn','onclick',()=>{ toggleFav(current); render(); });
   on('theme-btn','onclick',async()=>{ SET.theme = effectiveDark()?'light':'dark'; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
-  on('hide-btn','onclick',async()=>{ SET.hideBalance=!SET.hideBalance; await saveSettings(); render(); });
+  on('hide-btn','onclick',async()=>{
+    if(SET.hideBalance){ // currently hidden → reveal requires PIN
+      if(SET.pinHash){ showLock('reveal'); }
+      else { SET.hideBalance=false; await saveSettings(); render(); }
+    } else { // currently visible → hide immediately
+      SET.hideBalance=true; await saveSettings(); render();
+    }
+  });
   on('lock-btn','onclick',()=>{ if(SET.pinHash) showLock('enter'); else showLock('set'); });
   on('change-pin','onclick',()=>showLock('change'));
   on('goto-coach','onclick',()=>go('coach'));
@@ -1936,6 +1947,7 @@ let pinEntry='', pinTemp='', pinMode='enter';
 function pinDots(){ return `<div class="pin-dots" id="pin-dots">${[0,1,2,3].map(i=>`<i class="${i<pinEntry.length?'on':''}"></i>`).join('')}</div>`; }
 function lockMsg(){
   if(pinMode==='enter') return 'আপনার ৪-ডিজিট পিন দিন';
+  if(pinMode==='reveal') return 'ব্যালেন্স দেখাতে পিন দিন';
   if(pinMode==='set'||pinMode==='change') return pinTemp? 'নিশ্চিত করতে আবার দিন' : 'নতুন ৪-ডিজিট পিন তৈরি করুন';
   return '';
 }
@@ -1943,7 +1955,7 @@ function showLock(mode){
   pinMode=mode||'enter'; pinEntry=''; pinTemp='';
   let el=document.getElementById('lockscreen');
   if(!el){ el=document.createElement('div'); el.id='lockscreen'; el.className='lock'; document.body.appendChild(el); }
-  const cancelable=(pinMode==='change');
+  const cancelable=(pinMode==='change'||pinMode==='reveal');
   el.innerHTML=`<div class="lock-card">
     <div class="lock-mark">৳</div>
     <h2>অর্থসাথী</h2>
@@ -1978,6 +1990,11 @@ function pinDel(){ if(pinEntry.length){ pinEntry=pinEntry.slice(0,-1); refreshDo
 async function processPin(){
   if(pinMode==='enter'){
     if(hashPin(pinEntry)===SET.pinHash){ removeLock(); }
+    else { pinEntry=''; const m=document.getElementById('lock-msg'); if(m){ m.textContent='ভুল পিন, আবার চেষ্টা করুন'; m.classList.add('lock-err'); } refreshDots(true); }
+    return;
+  }
+  if(pinMode==='reveal'){
+    if(hashPin(pinEntry)===SET.pinHash){ SET.hideBalance=false; await saveSettings(); removeLock(); render(); }
     else { pinEntry=''; const m=document.getElementById('lock-msg'); if(m){ m.textContent='ভুল পিন, আবার চেষ্টা করুন'; m.classList.add('lock-err'); } refreshDots(true); }
     return;
   }
