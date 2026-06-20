@@ -723,7 +723,7 @@ function go(pid){ current=pid; renderNav(); render(); window.scrollTo(0,0); }
 function topbar(title,sub){
   return `<div class="topbar"><div class="t-title"><h2>${title}</h2><p>${sub||''}</p></div>
     <div class="topbar-actions">
-      <button class="btn-sm" id="bookmark-btn" title="এই পেজ বুকমার্ক করুন">${(SET.favorites||[]).includes(current)?ICONS.starfill:ICONS.star}${(SET.favorites||[]).includes(current)?'বুকমার্কড':'বুকমার্ক'}</button>
+      ${PAGES.some(p=>p.id===current)?`<button class="btn-sm" id="bookmark-btn" title="এই পেজ বুকমার্ক করুন">${(SET.favorites||[]).includes(current)?ICONS.starfill:ICONS.star}${(SET.favorites||[]).includes(current)?'বুকমার্কড':'বুকমার্ক'}</button>`:''}
       <button class="btn-sm" id="theme-btn" title="দ্রুত থিম পরিবর্তন">${effectiveDark()?ICONS.sun:ICONS.moon}${effectiveDark()?'লাইট':'ডার্ক'}</button>
       <button class="btn-sm" id="hide-btn" title="ব্যালেন্স লুকান/দেখান">${SET.hideBalance?ICONS.eyeoff:ICONS.eye}${SET.hideBalance?'দেখান':'লুকান'}</button>
       <button class="btn-sm" id="lock-btn" title="লক করুন">${ICONS.lock}</button>
@@ -737,7 +737,7 @@ function render(){
   v.innerHTML = reminderBanner() + ({
     dash:viewDash, coach:viewCoach, plan:viewPlan, compare:viewCompare, reminders:viewReminders, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
     goals:viewGoals, invest:viewInvest, emergency:viewEmergency, retire:viewRetire,
-    debt:viewDebt
+    debt:viewDebt, acctview:viewAccountDetail
   })[current]();
   bindView();
 }
@@ -880,7 +880,7 @@ function viewAccounts(){
     const bal=accBalance(a.id);
     const inM=sum(S.incomes.filter(x=>x.account===a.id && inThisMonth(x.date)),x=>x.amount);
     const outM=sum(S.expenses.filter(x=>x.account===a.id && inThisMonth(x.date)),x=>x.amount);
-    return `<div class="card">
+    return `<div class="card" data-acct="${a.id}" style="cursor:pointer">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div style="display:flex;align-items:center;gap:10px">
           <span class="stat-badge" style="--c:var(--brand);--b:var(--brand-bg)">${ICONS[ACC_ICON[a.type]]||ICONS.cash}</span>
@@ -894,6 +894,7 @@ function viewAccounts(){
         <span class="num neg">−${bdt(outM)}</span> গেছে
       </div>
       ${a.note?`<div class="rownote" style="margin-top:8px">${esc(a.note)}</div>`:''}
+      <div style="margin-top:10px;font-size:12px;color:var(--brand);font-weight:500">বিস্তারিত লেনদেন দেখুন →</div>
     </div>`;
   }).join('');
 
@@ -941,6 +942,60 @@ function viewAccounts(){
     </tbody></table>
     <div class="hint">ট্রান্সফারে মূল টাকা শুধু এক অ্যাকাউন্ট থেকে অন্যটিতে যায়। চার্জ থাকলে সেটি উৎস অ্যাকাউন্ট থেকে অতিরিক্ত কাটে এবং মোট সম্পদ কমায়।</div>
   </div>`;
+}
+
+/* ---- account statement (per-account transactions) ---- */
+let viewAccountId=null, acctFrom='', acctTo='';
+function openAccount(accId){ viewAccountId=accId; acctFrom=''; acctTo=''; current='acctview'; renderNav(); render(); try{window.scrollTo(0,0);}catch(e){} }
+const MOVE_LABEL={debt_pay:'ঋণ কিস্তি পরিশোধ',invest:'বিনিয়োগে জমা',goal:'লক্ষ্যে জমা',emergency:'ইমারজেন্সি ফান্ডে জমা',lend:'ধার দিলেন',lend_repay:'ধার ফেরত পেলেন',borrow:'ধার নিলেন',invest_redeem:'বিনিয়োগ নগদায়ন'};
+function acctTransactions(accId){
+  const out=[];
+  S.incomes.filter(x=>x.account===accId).forEach(x=>out.push({date:x.date,label:x.source||'আয়',sub:x.note||'',amt:x.amount}));
+  S.expenses.filter(x=>x.account===accId).forEach(x=>out.push({date:x.date,label:x.category||'ব্যয়',sub:x.note||'',amt:-x.amount}));
+  (S.transfers||[]).forEach(t=>{
+    if(t.to===accId) out.push({date:t.date,label:'ট্রান্সফার (এসেছে)',sub:accName(t.from),amt:t.amount});
+    if(t.from===accId){ out.push({date:t.date,label:'ট্রান্সফার (পাঠানো)',sub:accName(t.to),amt:-t.amount}); if((t.charge||0)>0) out.push({date:t.date,label:'ট্রান্সফার চার্জ',sub:'',amt:-t.charge}); }
+  });
+  (S.movements||[]).filter(m=>m.account===accId).forEach(m=>out.push({date:m.date,label:MOVE_LABEL[m.kind]||'লেনদেন',sub:m.note||'',amt:(m.dir==='in'?1:-1)*m.amount}));
+  out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return out;
+}
+function viewAccountDetail(){
+  const a=accById(viewAccountId);
+  if(!a){ current='accounts'; return viewAccounts(); }
+  let tx=acctTransactions(viewAccountId);
+  const total=tx.length;
+  const ranged=!!(acctFrom||acctTo);
+  if(acctFrom) tx=tx.filter(t=>t.date && t.date>=acctFrom);
+  if(acctTo) tx=tx.filter(t=>t.date && t.date<=acctTo);
+  const shown=ranged?tx:tx.slice(0,15);
+  const bal=accBalance(viewAccountId);
+  return topbar(esc(a.name),(ACC_TYPES[a.type]||'')+' · বিস্তারিত লেনদেন') +
+  `<button class="btn-sm" id="acct-back" style="margin-bottom:14px">← অ্যাকাউন্ট তালিকায় ফিরুন</button>
+   <div class="grid g-3" style="margin-bottom:16px">
+     ${stat('বর্তমান ব্যালেন্স',bdt(bal),bal>=0?'pos':'neg',ACC_TYPES[a.type]||'',ICONS[ACC_ICON[a.type]]||ICONS.cash,'var(--brand)','var(--brand-bg)')}
+     ${stat('মোট লেনদেন',total+'টি','','সব সময়',ICONS.accounts,'var(--blue)','var(--blue-bg)')}
+     ${stat('দেখাচ্ছে',shown.length+'টি','',ranged?'নির্বাচিত সময়':'সর্বশেষ ১৫',ICONS.cal,'var(--warn)','var(--warn-bg)')}
+   </div>
+   <div class="card pad-lg" style="margin-bottom:16px">
+     <h3>তারিখ অনুযায়ী দেখুন</h3>
+     <div class="form-row" style="margin-bottom:0;align-items:end">
+       <div class="field sm"><label>শুরুর তারিখ</label><input id="acct-from" type="date" value="${acctFrom}"></div>
+       <div class="field sm"><label>শেষ তারিখ</label><input id="acct-to" type="date" value="${acctTo}"></div>
+       <button class="btn" id="acct-range">দেখান</button>
+       <button class="btn-sm" id="acct-reset">রিসেট (সর্বশেষ ১৫)</button>
+     </div>
+   </div>
+   <div class="card pad-lg">
+     <h3>${ranged?'নির্বাচিত সময়ের লেনদেন':'সর্বশেষ ১৫টি লেনদেন'}</h3>
+     <table><thead><tr><th>তারিখ</th><th>বিবরণ</th><th class="r">পরিমাণ</th></tr></thead><tbody>
+     ${shown.length?shown.map(t=>`<tr>
+       <td class="num" style="color:var(--ink-3)">${fmtDate(t.date)}</td>
+       <td>${esc(t.label)}${t.sub?`<div class="rownote">${esc(t.sub)}</div>`:''}</td>
+       <td class="r num ${t.amt>=0?'pos':'neg'}">${t.amt>=0?'+ ':'− '}${bdt(Math.abs(t.amt))}</td>
+     </tr>`).join(''):`<tr><td colspan="3"><div class="empty">এই সময়ে কোনো লেনদেন নেই।</div></td></tr>`}
+     </tbody></table>
+   </div>`;
 }
 
 /* =========================================================
@@ -1717,7 +1772,8 @@ async function delItem(arrName,itemId){
 }
 
 function bindView(){
-  document.querySelectorAll('[data-del]').forEach(b=>{ b.onclick=()=>confirmDelete(()=>delItem(b.dataset.del,b.dataset.id)); });
+  document.querySelectorAll('[data-del]').forEach(b=>{ b.onclick=(e)=>{ e.stopPropagation(); confirmDelete(()=>delItem(b.dataset.del,b.dataset.id)); }; });
+  document.querySelectorAll('[data-acct]').forEach(c=>{ c.onclick=()=>openAccount(c.dataset.acct); });
   const _ex=document.getElementById('export-btn'); if(_ex) _ex.onclick=exportData;
   const _gp=document.getElementById('goto-plan'); if(_gp) _gp.onclick=()=>go('plan');
   const _ap=document.getElementById('apply-plan'); if(_ap) _ap.onclick=()=>{ if(confirm('এই মাসের বরাদ্দকৃত টাকা ইমারজেন্সি ফান্ড, লক্ষ্য ও রিটায়ারমেন্টের জমায় যোগ হবে। নিশ্চিত?')) applyPlan(); };
@@ -1852,6 +1908,9 @@ function bindView(){
   });
   on('reset-btn','onclick',async()=>{ if(confirm('সব তথ্য মুছে যাবে। নিশ্চিত?')){ S=seed(); await save(); go('dash'); } });
   on('bookmark-btn','onclick',()=>{ toggleFav(current); render(); });
+  on('acct-back','onclick',()=>go('accounts'));
+  on('acct-range','onclick',()=>{ acctFrom=val('acct-from')||''; acctTo=val('acct-to')||''; render(); });
+  on('acct-reset','onclick',()=>{ acctFrom=''; acctTo=''; render(); });
   on('theme-btn','onclick',async()=>{ SET.theme = effectiveDark()?'light':'dark'; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
   on('hide-btn','onclick',async()=>{
