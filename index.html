@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="অর্থসাথী — অ্যাকাউন্ট, আয়-ব্যয়, বাজেট, সঞ্চয়, বিনিয়োগ, ঋণ ও দেনা-পাওনা ট্র্যাকিং।">
+<meta name="description" content="অর্থসাথী — AI কোচসহ পিন-সুরক্ষিত আয়-ব্যয়, অ্যাকাউন্ট, বাজেট, সঞ্চয়, বিনিয়োগ ও ঋণ ট্র্যাকিং।">
 <meta name="theme-color" content="#0b6e4f">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <meta property="og:title" content="অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা">
-<meta property="og:description" content="অ্যাকাউন্ট, আয়-ব্যয়, বাজেট, সঞ্চয়, বিনিয়োগ ও ঋণ — সব এক জায়গায়।">
+<meta property="og:description" content="AI কোচ, অ্যাকাউন্ট, আয়-ব্যয়, বাজেট, সঞ্চয়, বিনিয়োগ ও ঋণ — সব এক জায়গায়।">
 <meta property="og:type" content="website">
 <title>অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -258,6 +258,25 @@
 
   @media(max-width:880px) and (min-width:520px){ .g-4,.g-2{grid-template-columns:1fr 1fr} }
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* PIN lock screen */
+  .lock{position:fixed;inset:0;z-index:1000;background:linear-gradient(180deg,var(--side),var(--side-2));display:grid;place-items:center;padding:20px}
+  .lock-card{width:100%;max-width:320px;text-align:center}
+  .lock-mark{width:54px;height:54px;border-radius:14px;margin:0 auto 14px;background:linear-gradient(145deg,#16a06f,var(--brand));display:grid;place-items:center;color:#fff;font-size:26px;font-weight:600;box-shadow:0 8px 20px rgba(11,110,79,.4)}
+  .lock-card h2{font-size:21px;color:#fff;margin-bottom:4px;font-weight:600}
+  .lock-card p{font-size:14px;color:var(--side-ink-2);margin-bottom:22px;min-height:20px}
+  .pin-dots{display:flex;gap:15px;justify-content:center;margin-bottom:26px}
+  .pin-dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--side-ink-2);transition:.15s}
+  .pin-dots i.on{background:#2ecb8e;border-color:#2ecb8e}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:248px;margin:0 auto}
+  .keypad button{height:60px;border-radius:12px;border:1px solid var(--side-line);background:rgba(255,255,255,.06);color:#fff;font-size:22px;font-family:var(--mono);cursor:pointer;transition:.12s}
+  .keypad button:hover{background:rgba(255,255,255,.13)}
+  .keypad button.fn{font-size:15px;font-family:var(--body);color:var(--side-ink-2)}
+  .keypad button.blank{visibility:hidden;cursor:default}
+  .lock-err{color:#ff9b94!important;animation:shake .3s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+  .lock-link{display:inline-block;margin-top:22px;font-size:12.5px;color:var(--side-ink-2);cursor:pointer;text-decoration:underline}
+  body.locked{overflow:hidden}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -303,6 +322,13 @@ const Store = {
     mem[k]=val;
   }
 };
+
+/* ---------- App settings: PIN + balance privacy ---------- */
+const SKEY='orthosathi_settings';
+let SET={ pinHash:null, hideBalance:false };
+async function loadSettings(){ const s=await Store.get(SKEY); if(s) SET={...SET,...s}; }
+async function saveSettings(){ await Store.set(SKEY,SET); }
+function hashPin(p){ let h=2166136261>>>0; const str='orthosathi:'+p; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return 'p'+h.toString(36); }
 
 /* ---------- Date helpers ---------- */
 function id(){ return Math.random().toString(36).slice(2,9); }
@@ -415,7 +441,7 @@ async function load(){
 }
 
 /* ---------- Money helpers ---------- */
-const bdt = n => '৳'+Math.round(n||0).toLocaleString('en-IN');
+const bdt = n => SET.hideBalance ? '৳ ••••' : '৳'+Math.round(n||0).toLocaleString('en-IN');
 const sum = (arr,f)=>arr.reduce((a,x)=>a+(f?f(x):x),0);
 function monthName(){ return new Date().toLocaleDateString('bn-BD',{month:'long',year:'numeric'}); }
 
@@ -429,7 +455,7 @@ function accBalance(idv){
   bal+=sum(S.incomes.filter(x=>x.account===idv),x=>x.amount);
   bal-=sum(S.expenses.filter(x=>x.account===idv),x=>x.amount);
   bal+=sum((S.transfers||[]).filter(t=>t.to===idv),t=>t.amount);
-  bal-=sum((S.transfers||[]).filter(t=>t.from===idv),t=>t.amount);
+  bal-=sum((S.transfers||[]).filter(t=>t.from===idv),t=>t.amount+(t.charge||0));
   // movements: contributions, loan payments, lending, borrowing
   bal+=sum((S.movements||[]).filter(m=>m.account===idv && m.dir==='in'),m=>m.amount);
   bal-=sum((S.movements||[]).filter(m=>m.account===idv && m.dir==='out'),m=>m.amount);
@@ -487,7 +513,7 @@ function totals(){
   const non = expense-ess;
   const savings = income-expense;
   const rate = income>0 ? (savings/income*100) : 0;
-  const investTotal = sum(S.investments,x=>x.amount);
+  const investTotal = sum(S.investments.filter(i=>!i.matured),x=>x.amount);
   const debtTotal = sum(S.debts,x=>x.balance);
   const goalSaved = sum(S.goals,x=>x.saved);
   const liquid = liquidTotal();
@@ -547,10 +573,14 @@ const ICONS={
   wallet:`<svg viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="11" rx="2" ${_s}/><path d="M3 8h14" ${_s}/><circle cx="13.5" cy="11.5" r="1" fill="currentColor" stroke="none"/></svg>`,
   cash:`<svg viewBox="0 0 20 20"><rect x="2.5" y="6" width="15" height="8" rx="1.5" ${_s}/><circle cx="10" cy="10" r="2.2" ${_s}/></svg>`,
   transfer:`<svg viewBox="0 0 20 20"><path d="M5 7h10l-2.5-2.5M15 13H5l2.5 2.5" ${_s}/></svg>`,
+  eye:`<svg viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z" ${_s}/><circle cx="10" cy="10" r="2.2" ${_s}/></svg>`,
+  eyeoff:`<svg viewBox="0 0 20 20"><path d="M5 5.5C3.2 6.8 2 10 2 10s3 5 8 5c1.4 0 2.6-.3 3.7-.8M8.5 5.2C9 5.1 9.5 5 10 5c5 0 8 5 8 5s-.8 1.4-2.3 2.7" ${_s}/><path d="M3 3l14 14" ${_s}/></svg>`,
+  lock:`<svg viewBox="0 0 20 20"><rect x="4.5" y="9" width="11" height="7.5" rx="1.5" ${_s}/><path d="M7 9V6.5a3 3 0 016 0V9" ${_s}/></svg>`,
 };
 
 const PAGES = [
   {id:'dash', label:'ড্যাশবোর্ড', group:'overview'},
+  {id:'coach', label:'AI আর্থিক কোচ', group:'overview'},
   {id:'plan', label:'মাসিক পরিকল্পনা', group:'overview'},
   {id:'compare', label:'মাসিক তুলনা', group:'overview'},
   {id:'accounts', label:'অ্যাকাউন্ট ও লেনদেন', group:'track'},
@@ -593,7 +623,9 @@ function go(pid){ current=pid; renderNav(); render(); window.scrollTo(0,0); }
 function topbar(title,sub){
   return `<div class="topbar"><div class="t-title"><h2>${title}</h2><p>${sub||''}</p></div>
     <div class="topbar-actions">
-      <button class="btn-sm" id="export-btn">${ICONS.download}এক্সেল ডাউনলোড</button>
+      <button class="btn-sm" id="hide-btn" title="ব্যালেন্স লুকান/দেখান">${SET.hideBalance?ICONS.eyeoff:ICONS.eye}${SET.hideBalance?'দেখান':'লুকান'}</button>
+      <button class="btn-sm" id="lock-btn" title="লক করুন">${ICONS.lock}</button>
+      <button class="btn-sm" id="export-btn">${ICONS.download}এক্সেল</button>
       <div class="month-pill">${ICONS.cal}<span class="num">${monthName()}</span></div>
     </div></div>`;
 }
@@ -601,7 +633,7 @@ function topbar(title,sub){
 function render(){
   const v=document.getElementById('view');
   v.innerHTML = ({
-    dash:viewDash, plan:viewPlan, compare:viewCompare, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
+    dash:viewDash, coach:viewCoach, plan:viewPlan, compare:viewCompare, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
     goals:viewGoals, invest:viewInvest, emergency:viewEmergency, retire:viewRetire,
     debt:viewDebt
   })[current]();
@@ -708,12 +740,19 @@ function viewDash(){
   <div class="grid g-3">
     ${miniCard('সম্পদ বিভাজন',[['নগদ ও ব্যাংক',bdt(t.liquid)],['বিনিয়োগ',bdt(t.investTotal)],['রিটায়ারমেন্ট জমা',bdt(S.retirement.currentSavings)],['ঋণ (বাদ)','− '+bdt(t.debtTotal)]])}
     ${miniCard('দায়',[['মোট ঋণ',bdt(t.debtTotal)],['ঋণের সংখ্যা',S.debts.filter(d=>d.balance>0).length+'টি'],['সর্বোচ্চ সুদ',(S.debts.length?Math.max(...S.debts.map(d=>d.rate)):0)+'%']])}
-    <div class="card"><h3>মূলমন্ত্র</h3><div class="quote">আর্থিক সুস্থতা নির্ভর করে আপনি কত আয় করেন তার ওপর নয় — বরং সেই অর্থ কতটা ভালোভাবে পরিচালনা, বাজেট, বিনিয়োগ ও সুরক্ষা করেন তার ওপর।</div></div>
+    ${(function(){const top=coachInsights()[0];return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">AI কোচের পরামর্শ</h3><button class="btn-sm" id="goto-coach">${ICONS.goals}সব দেখুন</button></div>
+      <div class="alert ${top.level}" style="align-items:flex-start;margin-top:12px;margin-bottom:0"><span class="ai">${coachIcon(top.level)}</span><div><div style="font-weight:600;margin-bottom:3px">${top.title}</div><div style="font-size:13px;line-height:1.55">${top.body}</div></div></div></div>`;})()}
   </div>
 
   <div class="card" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-    <div><h3 style="margin:0">ডেটা রিসেট</h3><p style="font-size:13px;color:var(--ink-3)">সব তথ্য মুছে নতুন করে শুরু করুন।</p></div>
-    <button class="btn ghost" id="reset-btn">সব রিসেট করুন</button>
+    <div><h3 style="margin:0">নিরাপত্তা ও ডেটা</h3><p style="font-size:13px;color:var(--ink-3)">পিন পরিবর্তন করুন, অথবা সব তথ্য মুছে নতুন করে শুরু করুন।</p></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-sm" id="backup-btn">${ICONS.download}ব্যাকআপ ফাইল</button>
+      <button class="btn-sm" id="restore-btn">${ICONS.transfer}রিস্টোর</button>
+      <button class="btn-sm" id="change-pin">${ICONS.lock}পিন পরিবর্তন</button>
+      <button class="btn ghost" id="reset-btn">সব রিসেট করুন</button>
+      <input type="file" id="restore-file" accept="application/json,.json" style="display:none">
+    </div>
   </div>`;
 }
 
@@ -771,20 +810,22 @@ function viewAccounts(){
       <div class="field"><label>যেখান থেকে</label>${accSelect('tr-from',(S.accounts[0]||{}).id)}</div>
       <div class="field"><label>যেখানে</label>${accSelect('tr-to',(S.accounts[1]||S.accounts[0]||{}).id)}</div>
       <div class="field sm"><label>পরিমাণ (৳)</label><input id="tr-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>চার্জ (৳)</label><input id="tr-charge" class="num" type="number" placeholder="0"></div>
       <div class="field sm"><label>তারিখ</label><input id="tr-date" type="date" value="${today()}"></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="tr-note" placeholder="যেমন: ক্যাশ আউট"></div>
       <button class="btn" id="tr-add">ট্রান্সফার</button>
     </div>
-    <table><thead><tr><th>তারিখ</th><th>যেখান থেকে</th><th>যেখানে</th><th class="r">পরিমাণ</th><th></th></tr></thead><tbody>
+    <table><thead><tr><th>তারিখ</th><th>যেখান থেকে</th><th>যেখানে</th><th class="r">পরিমাণ</th><th class="r">চার্জ</th><th></th></tr></thead><tbody>
     ${tlist.length?tlist.map(t=>`<tr>
       <td class="num" style="color:var(--ink-3)">${fmtDate(t.date)}</td>
       <td>${esc(accName(t.from))||'—'}${t.note?`<div class="rownote">${esc(t.note)}</div>`:''}</td>
       <td>${ICONS.transfer} ${esc(accName(t.to))||'—'}</td>
       <td class="r num">${bdt(t.amount)}</td>
+      <td class="r num ${(t.charge||0)>0?'neg':''}">${(t.charge||0)>0?bdt(t.charge):'—'}</td>
       <td class="r"><button class="del" data-del="transfers" data-id="${t.id}">✕</button></td>
-    </tr>`).join(''):`<tr><td colspan="5"><div class="empty">কোনো ট্রান্সফার নেই।</div></td></tr>`}
+    </tr>`).join(''):`<tr><td colspan="6"><div class="empty">কোনো ট্রান্সফার নেই।</div></td></tr>`}
     </tbody></table>
-    <div class="hint">ট্রান্সফারে মোট সম্পদ বদলায় না — টাকা শুধু এক অ্যাকাউন্ট থেকে অন্যটিতে যায়।</div>
+    <div class="hint">ট্রান্সফারে মূল টাকা শুধু এক অ্যাকাউন্ট থেকে অন্যটিতে যায়। চার্জ থাকলে সেটি উৎস অ্যাকাউন্ট থেকে অতিরিক্ত কাটে এবং মোট সম্পদ কমায়।</div>
   </div>`;
 }
 
@@ -949,14 +990,19 @@ const INV_TYPES={stocks:'শেয়ার',bonds:'বন্ড/সঞ্চয
 const RISK={low:'কম',medium:'মাঝারি',high:'উচ্চ'};
 const RISK_COL={low:'var(--green)',medium:'var(--gold)',high:'var(--rose)'};
 function viewInvest(){
-  const total=sum(S.investments,x=>x.amount);
-  const byType={}; S.investments.forEach(i=>byType[i.type]=(byType[i.type]||0)+i.amount);
+  const active=S.investments.filter(i=>!i.matured);
+  const matured=S.investments.filter(i=>i.matured);
+  const total=sum(active,x=>x.amount);
+  const byType={}; active.forEach(i=>byType[i.type]=(byType[i.type]||0)+i.amount);
   const typeCount=Object.keys(byType).length;
   const palette=['var(--brand)','var(--blue)','var(--warn)','#5b6472','#0e7090','var(--brand-d)'];
+  const realizedProfit=sum(matured,i=>(i.profit||0));
+  const realizedTax=sum(matured,i=>(i.tax||0));
   return topbar('বিনিয়োগ','দীর্ঘমেয়াদি কৌশল — বৈচিত্র্য ঝুঁকি কমায়') +
-  (typeCount<3?`<div class="alert tip"><span class="ai">i</span><div>আপনার বিনিয়োগ মাত্র ${typeCount} ধরনের সম্পদে। শেয়ার, বন্ড, মিউচুয়াল ফান্ড ও রিয়েল এস্টেটে ছড়িয়ে দিলে ঝুঁকি কমে।</div></div>`:'') +
+  (active.length&&typeCount<3?`<div class="alert tip"><span class="ai">i</span><div>আপনার বিনিয়োগ মাত্র ${typeCount} ধরনের সম্পদে। শেয়ার, বন্ড, মিউচুয়াল ফান্ড ও রিয়েল এস্টেটে ছড়িয়ে দিলে ঝুঁকি কমে।</div></div>`:'') +
   `<div class="card pad-lg" style="margin-bottom:16px">
-    <div class="form-row">
+    <h3>নতুন বিনিয়োগ যোগ করুন</h3>
+    <div class="form-row" style="margin-bottom:0">
       <div class="field"><label>বিনিয়োগের নাম</label>${catSelect('v-name','invest','বিনিয়োগ নির্বাচন করুন')}</div>
       <div class="field sm"><label>ধরন</label><select id="v-type">${Object.entries(INV_TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div>
       <div class="field sm"><label>পরিমাণ (৳)</label><input id="v-amt" class="num" type="number" placeholder="0"></div>
@@ -965,37 +1011,66 @@ function viewInvest(){
       <button class="btn" id="v-add">যোগ করুন</button>
     </div>
   </div>
-  ${S.investments.length?`<div class="card pad-lg" style="margin-bottom:16px">
+  ${active.length?`<div class="card pad-lg" style="margin-bottom:16px">
     <h3>বিনিয়োগে জমা দিন (যেমন মাসিক DPS)</h3>
     <div class="form-row" style="margin-bottom:0">
-      <div class="field"><label>কোন বিনিয়োগে</label><select id="ic-inv">${S.investments.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>কোন বিনিয়োগে</label><select id="ic-inv">${active.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('')}</select></div>
       <div class="field sm"><label>পরিমাণ (৳)</label><input id="ic-amt" class="num" type="number" placeholder="0"></div>
       <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('ic-acc')}</div>
       <div class="field sm"><label>তারিখ</label><input id="ic-date" type="date" value="${today()}"></div>
       <button class="btn" id="ic-add">জমা দিন</button>
     </div>
     <div class="hint">জমা দিলে নির্বাচিত অ্যাকাউন্ট থেকে টাকা কাটবে এবং বিনিয়োগের পরিমাণ বাড়বে।</div>
+  </div>
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <h3>বিনিয়োগ ম্যাচিউর / নগদায়ন</h3>
+    <div class="form-row" style="margin-bottom:0">
+      <div class="field"><label>কোন বিনিয়োগ</label><select id="iv-inv">${active.map(i=>`<option value="${i.id}">${esc(i.name)} — লগ্নি ${bdt(i.amount)}</option>`).join('')}</select></div>
+      <div class="field sm"><label>প্রাপ্ত মোট (৳)</label><input id="iv-gross" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>লাভের ওপর ট্যাক্স (৳)</label><input id="iv-tax" class="num" type="number" placeholder="0"></div>
+      <div class="field"><label>যে অ্যাকাউন্টে জমা</label>${accSelect('iv-acc')}</div>
+      <div class="field sm"><label>তারিখ</label><input id="iv-date" type="date" value="${today()}"></div>
+      <button class="btn" id="iv-redeem">নগদায়ন</button>
+    </div>
+    <div class="hint">"প্রাপ্ত মোট" লগ্নির চেয়ে বেশি হলে লাভ, কম হলে লস। লাভের ওপর সরকার ট্যাক্স কাটলে তা লিখুন। নিট টাকা (প্রাপ্ত − ট্যাক্স) নির্বাচিত অ্যাকাউন্টে জমা হবে এবং বিনিয়োগটি ম্যাচিউরড হবে।</div>
   </div>`:''}
   <div class="grid g-2">
     <div class="card">
-      <h3>সম্পদ বণ্টন · মোট ${bdt(total)}</h3>
+      <h3>সম্পদ বণ্টন · সক্রিয় মোট ${bdt(total)}</h3>
       <div class="splitbar">${Object.entries(byType).map(([k,v],idx)=>`<i style="width:${total>0?v/total*100:0}%;background:${palette[idx%palette.length]}"></i>`).join('')}</div>
       <div class="legend">${Object.entries(byType).map(([k,v],idx)=>`<span><i style="background:${palette[idx%palette.length]}"></i>${INV_TYPES[k]} ${total>0?(v/total*100).toFixed(0):0}%</span>`).join('')}</div>
       <div class="hint">বিনিয়োগের আগে নিজের ঝুঁকি সহনশীলতা জানুন — প্রতিটি সম্পদের ঝুঁকি আপনার আর্থিক লক্ষ্যের সাথে মিলতে হবে।</div>
     </div>
     <div class="card">
-      <h3>পোর্টফোলিও</h3>
+      <h3>সক্রিয় পোর্টফোলিও</h3>
       <table><thead><tr><th>তারিখ</th><th>নাম</th><th>ধরন</th><th>ঝুঁকি</th><th class="r">পরিমাণ</th><th></th></tr></thead><tbody>
-      ${S.investments.length?byDateDesc(S.investments).map(i=>`<tr>
+      ${active.length?byDateDesc(active).map(i=>`<tr>
         <td class="num" style="color:var(--ink-3)">${fmtDate(i.date)}</td>
         <td>${esc(i.name)}${noteCell(i.note)}</td><td>${INV_TYPES[i.type]||i.type}</td>
         <td><span style="color:${RISK_COL[i.risk]}">●</span> ${RISK[i.risk]}</td>
         <td class="r num">${bdt(i.amount)}</td>
         <td class="r"><button class="del" data-del="investments" data-id="${i.id}">✕</button></td>
-      </tr>`).join(''):`<tr><td colspan="6"><div class="empty">কোনো বিনিয়োগ নেই।</div></td></tr>`}
+      </tr>`).join(''):`<tr><td colspan="6"><div class="empty">কোনো সক্রিয় বিনিয়োগ নেই।</div></td></tr>`}
       </tbody></table>
     </div>
-  </div>`;
+  </div>
+  ${matured.length?`<div class="card pad-lg" style="margin-top:16px">
+    <h3>ম্যাচিউরড / নগদায়িত বিনিয়োগ</h3>
+    <table><thead><tr><th>নাম</th><th class="r">লগ্নি</th><th class="r">প্রাপ্ত</th><th class="r">লাভ/লস</th><th class="r">ট্যাক্স</th><th class="r">নিট জমা</th><th>তারিখ</th><th></th></tr></thead>
+    <tbody>${byDateDesc(matured.map(m=>({...m,date:m.maturedDate}))).map(i=>{const pl=i.profit||0;return `<tr>
+      <td>${esc(i.name)}</td>
+      <td class="r num">${bdt(i.amount)}</td>
+      <td class="r num">${bdt(i.gross||0)}</td>
+      <td class="r num ${pl>=0?'pos':'neg'}">${pl>=0?'+':''}${bdt(pl)}</td>
+      <td class="r num">${bdt(i.tax||0)}</td>
+      <td class="r num">${bdt(i.net||0)}</td>
+      <td class="num" style="color:var(--ink-3)">${fmtDate(i.maturedDate)}</td>
+      <td class="r"><button class="del" data-del="investments" data-id="${i.id}">✕</button></td>
+    </tr>`}).join('')}</tbody>
+    <tfoot><tr><td colspan="3" style="font-weight:600">মোট প্রাপ্ত লাভ/লস · ট্যাক্স</td>
+      <td class="r num ${realizedProfit>=0?'pos':'neg'}" style="font-weight:600">${realizedProfit>=0?'+':''}${bdt(realizedProfit)}</td>
+      <td class="r num" style="font-weight:600">${bdt(realizedTax)}</td><td colspan="3"></td></tr></tfoot></table>
+  </div>`:''}`;
 }
 
 /* =========================================================
@@ -1025,7 +1100,7 @@ function viewEmergency(){
       <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:13px;color:var(--ink-2)">
         <span class="num">${bdt(S.emergency.current)} জমা</span><span class="num">${monthsCovered.toFixed(1)} মাস কভার</span>
       </div>
-      ${monthsCovered>=S.emergency.monthsTarget?`<div class="alert good" style="margin-top:14px"><span class="ai">✓</span><div>চমৎকার! আপনার ইমারজেন্সি ফান্ড লক্ষ্য পূর্ণ।</div></div>`:`<div class="alert tip" style="margin-top:14px"><span class="ai">i</span><div>লক্ষ্যে পৌঁছাতে আরও <b>${bdt(Math.max(0,target-S.emergency.current))}</b> দরকার। ${(S.emergency.monthly||0)>0?'মাসিক ৳'+(S.emergency.monthly||0).toLocaleString('en-IN')+' হারে '+etaText(Math.max(0,target-S.emergency.current),S.emergency.monthly||0)+'।':'মাসিক বরাদ্দ যোগ করলে আনুমানিক সময় দেখা যাবে।'}</div></div>`}
+      ${monthsCovered>=S.emergency.monthsTarget?`<div class="alert good" style="margin-top:14px"><span class="ai">✓</span><div>চমৎকার! আপনার ইমারজেন্সি ফান্ড লক্ষ্য পূর্ণ।</div></div>`:`<div class="alert tip" style="margin-top:14px"><span class="ai">i</span><div>লক্ষ্যে পৌঁছাতে আরও <b>${bdt(Math.max(0,target-S.emergency.current))}</b> দরকার। ${(S.emergency.monthly||0)>0?'মাসিক '+bdt(S.emergency.monthly||0)+' হারে '+etaText(Math.max(0,target-S.emergency.current),S.emergency.monthly||0)+'।':'মাসিক বরাদ্দ যোগ করলে আনুমানিক সময় দেখা যাবে।'}</div></div>`}
     </div>
   </div>
   <div class="card pad-lg" style="margin-top:16px">
@@ -1326,6 +1401,105 @@ function applyPlan(){
 }
 
 /* =========================================================
+   AI আর্থিক কোচ — rule-based personalized insights
+   ========================================================= */
+function coachInsights(){
+  const out=[]; const t=totals();
+  const s=monthsSeries(2); const cur=s[1]||{exp:0}, prev=s[0]||{exp:0};
+  const spentCat=c=>sum(S.expenses.filter(e=>e.category===c && inThisMonth(e.date)),e=>e.amount);
+  const cats=Object.keys(S.budgets||{});
+
+  // Budget overspend (top 2 categories)
+  const over=[];
+  cats.forEach(c=>{ const b=S.budgets[c]||0; if(b>0){ const sp=spentCat(c); if(sp>b) over.push({c,b,sp,diff:sp-b,pct:(sp-b)/b*100}); } });
+  over.sort((a,b)=>b.diff-a.diff);
+  over.slice(0,2).forEach(o=>out.push({level:'tip',pri:1,title:`${o.c} খাতে বাজেট অতিক্রম`,
+    body:`এই মাসে আপনার ${esc(o.c)} খরচ বাজেটের চেয়ে <b>${o.pct.toFixed(0)}%</b> বেশি (${bdt(o.sp)} · বাজেট ${bdt(o.b)})। আগামী মাসে বাজেটে রাখলে <b>${bdt(o.diff)}</b> বাঁচবে।`}));
+
+  // Savings-rate improvement projection
+  if(t.income>0){
+    let potential=sum(over,o=>o.diff);
+    if(potential<=0){
+      const nonCats={}; S.expenses.filter(e=>inThisMonth(e.date)&&!e.essential).forEach(e=>nonCats[e.category]=(nonCats[e.category]||0)+e.amount);
+      const top=Object.entries(nonCats).sort((a,b)=>b[1]-a[1])[0];
+      if(top) potential=Math.round(top[1]*0.2);
+    }
+    if(potential>0){
+      const newRate=(t.savings+potential)/t.income*100;
+      out.push({level:'tip',pri:1,title:'সঞ্চয় বাড়ানোর সুযোগ',
+        body:`আগামী মাসে <b>${bdt(potential)}</b> কম খরচ করতে পারলে আপনার সঞ্চয় হার <b>${t.rate.toFixed(0)}%</b> থেকে <b>${newRate.toFixed(0)}%</b> হবে।`});
+    }
+  }
+
+  // Spend trend vs last month
+  if(prev.exp>0){
+    const pct=(cur.exp-prev.exp)/prev.exp*100;
+    if(pct>=10) out.push({level:'tip',pri:1,title:'খরচ বেড়েছে',body:`গত মাসের তুলনায় এ মাসে মোট খরচ <b>${pct.toFixed(0)}%</b> বেড়েছে (${bdt(prev.exp)} → ${bdt(cur.exp)})। কোন খাতে বাড়ল দেখে নিন।`});
+    else if(pct<=-10) out.push({level:'good',pri:2,title:'খরচ কমেছে',body:`দারুণ! গত মাসের তুলনায় খরচ <b>${Math.abs(pct).toFixed(0)}%</b> কমেছে।`});
+  }
+
+  // Savings rate band
+  if(t.income>0){
+    if(t.rate<10) out.push({level:'tip',pri:1,title:'সঞ্চয় হার কম',body:`এ মাসে সঞ্চয় হার <b>${t.rate.toFixed(0)}%</b>। বিশেষজ্ঞরা অন্তত ২০% সঞ্চয়ের পরামর্শ দেন — ছোট ছোট অনাবশ্যক খরচ কমিয়ে শুরু করুন।`});
+    else if(t.rate>=20) out.push({level:'good',pri:2,title:'সঞ্চয়ে ভালো করছেন',body:`আপনার সঞ্চয় হার <b>${t.rate.toFixed(0)}%</b> — চমৎকার! এই অভ্যাস ধরে রাখুন।`});
+  }
+
+  // Non-essential share
+  if(t.expense>0){ const share=t.non/t.expense*100;
+    if(share>=40) out.push({level:'tip',pri:1,title:'অনাবশ্যক খরচ বেশি',body:`এ মাসের ব্যয়ের <b>${share.toFixed(0)}%</b> অনাবশ্যক খাতে (${bdt(t.non)})। এর কিছুটা কমালে সরাসরি সঞ্চয়ে যোগ হবে।`});
+  }
+
+  // Emergency fund
+  if(t.ess>0){ const months=S.emergency.current/t.ess;
+    if(months<S.emergency.monthsTarget){ const need=t.ess*S.emergency.monthsTarget-S.emergency.current;
+      out.push({level:months<3?'danger':'tip',pri:months<3?0:1,title:'ইমারজেন্সি ফান্ড আরও দরকার',
+        body:`আপনার ফান্ড এখন <b>${months.toFixed(1)} মাসের</b> খরচ কভার করে (লক্ষ্য ${S.emergency.monthsTarget} মাস)। আর <b>${bdt(need)}</b> দরকার${(S.emergency.monthly||0)>0?`; মাসিক ${bdt(S.emergency.monthly)} হারে ~${Math.ceil(need/S.emergency.monthly)} মাসে পূর্ণ হবে`:''}।`});
+    }
+  }
+
+  // High-interest debt
+  const hi=S.debts.filter(d=>d.balance>0&&d.rate>=18).sort((a,b)=>b.rate-a.rate)[0];
+  if(hi){ const yrInt=hi.balance*hi.rate/100;
+    out.push({level:'danger',pri:0,title:'উচ্চ-সুদের ঋণ আগে শেষ করুন',body:`${esc(hi.name)} (সুদ ${hi.rate}%) — এই হারে বছরে প্রায় <b>${bdt(yrInt)}</b> সুদ গুনছেন। অন্য ঋণের আগে এটি পরিশোধ করলে সবচেয়ে বেশি সাশ্রয়।`});
+  }
+
+  // Plan allocation deficit
+  const p=planData();
+  if(p.leftover<0) out.push({level:'tip',pri:1,title:'বরাদ্দ সঞ্চয়ের চেয়ে বেশি',body:`আপনার মাসিক বরাদ্দ সঞ্চয়ের চেয়ে <b>${bdt(-p.leftover)}</b> বেশি। বরাদ্দ কমান বা খরচ কমিয়ে সঞ্চয় বাড়ান।`});
+
+  // Goal without monthly allocation
+  const gNo=S.goals.find(g=>(g.target-g.saved)>0 && (g.monthly||0)<=0);
+  if(gNo) out.push({level:'tip',pri:1,title:`"${esc(gNo.name)}" লক্ষ্যে বরাদ্দ নেই`,body:`এই লক্ষ্যে মাসিক বরাদ্দ দিলে কবে পৌঁছাবেন তা হিসাব হবে এবং নিয়মিত জমা সহজ হবে। সঞ্চয় ও লক্ষ্য পেজে বরাদ্দ যোগ করুন।`});
+
+  // Diversification
+  const active=S.investments.filter(i=>!i.matured); const types=new Set(active.map(i=>i.type));
+  if(active.length && types.size<3) out.push({level:'tip',pri:1,title:'বিনিয়োগে বৈচিত্র্য বাড়ান',body:`আপনার বিনিয়োগ মাত্র ${types.size} ধরনের সম্পদে। শেয়ার, বন্ড/সঞ্চয়পত্র, মিউচুয়াল ফান্ড ও স্বর্ণে ছড়িয়ে দিলে ঝুঁকি কমে।`});
+
+  if(!out.some(o=>o.level==='danger'||o.pri===1)) out.unshift({level:'good',pri:2,title:'আপনি ঠিক পথে আছেন',body:`এ মাসে বড় কোনো সতর্কতা নেই — খরচ নিয়ন্ত্রণে আর সঞ্চয় ঠিক আছে। চালিয়ে যান!`});
+
+  out.sort((a,b)=>a.pri-b.pri);
+  return out;
+}
+function coachIcon(level){ return level==='danger'?'!':level==='good'?'✓':'i'; }
+function viewCoach(){
+  const ins=coachInsights();
+  const t=totals();
+  return topbar('AI আর্থিক কোচ','আপনার তথ্য বিশ্লেষণ করে ব্যক্তিগত পরামর্শ') +
+  `<div class="grid g-3" style="margin-bottom:16px">
+    ${stat('সঞ্চয় হার',t.rate.toFixed(0)+'%',t.rate>=20?'pos':t.rate>=10?'':'neg','চলতি মাস',ICONS.plan,'var(--brand)','var(--brand-bg)')}
+    ${stat('এ মাসের সঞ্চয়',bdt(t.savings),t.savings>=0?'pos':'neg','আয় − ব্যয়',ICONS.coins,'var(--blue)','var(--blue-bg)')}
+    ${stat('পরামর্শ',ins.length+'টি','','আপনার জন্য',ICONS.goals,'var(--warn)','var(--warn-bg)')}
+  </div>
+  <div class="coach-list">
+    ${ins.map(m=>`<div class="alert ${m.level}" style="align-items:flex-start;margin-bottom:12px">
+      <span class="ai">${coachIcon(m.level)}</span>
+      <div><div style="font-weight:600;margin-bottom:3px">${m.title}</div><div style="font-size:13.5px;line-height:1.6">${m.body}</div></div>
+    </div>`).join('')}
+  </div>
+  <div class="hint">এই পরামর্শগুলো আপনার ইনপুট করা তথ্য (আয়, ব্যয়, বাজেট, ঋণ, লক্ষ্য) থেকে স্বয়ংক্রিয়ভাবে হিসাব করা — যত নিয়মিত তথ্য দেবেন, তত নিখুঁত হবে।</div>`;
+}
+
+/* =========================================================
    Excel export (SheetJS if available, else CSV)
    ========================================================= */
 function exportData(){
@@ -1350,12 +1524,12 @@ function exportData(){
       ...s.map(m=>[m.label,m.inc,m.exp,m.sav,+m.rate.toFixed(1)]),
     ],
     'অ্যাকাউন্ট':[ ['নাম','ধরন','ওপেনিং ব্যালেন্স','বর্তমান ব্যালেন্স','মন্তব্য'], ...(S.accounts||[]).map(a=>[a.name,ACC_TYPES[a.type]||a.type,a.opening||0,accBalance(a.id),a.note||'']) ],
-    'ট্রান্সফার':[ ['তারিখ','যেখান থেকে','যেখানে','পরিমাণ','মন্তব্য'], ...byDateDesc(S.transfers||[]).map(t=>[t.date,accName(t.from),accName(t.to),t.amount,t.note||'']) ],
+    'ট্রান্সফার':[ ['তারিখ','যেখান থেকে','যেখানে','পরিমাণ','চার্জ','মন্তব্য'], ...byDateDesc(S.transfers||[]).map(t=>[t.date,accName(t.from),accName(t.to),t.amount,t.charge||0,t.note||'']) ],
     'আয়':[ ['তারিখ','উৎস','অ্যাকাউন্ট','পরিমাণ','মন্তব্য'], ...byDateDesc(S.incomes).map(x=>[x.date,x.source,accName(x.account),x.amount,x.note||'']) ],
     'ব্যয়':[ ['তারিখ','খাত','অ্যাকাউন্ট','ধরন','পরিমাণ','মন্তব্য'], ...byDateDesc(S.expenses).map(x=>[x.date,x.category,accName(x.account),x.essential?'অপরিহার্য':'অনাবশ্যক',x.amount,x.note||'']) ],
     'বাজেট':[ ['খাত','মাসিক বাজেট','চলতি মাসের খরচ'], ...Object.keys(S.budgets).map(c=>[c,S.budgets[c],sum(S.expenses.filter(e=>e.category===c&&inThisMonth(e.date)),e=>e.amount)]) ],
     'লক্ষ্য':[ ['লক্ষ্য','মোট দরকার','জমা','অগ্রগতি (%)','তারিখ','মন্তব্য'], ...S.goals.map(g=>[g.name,g.target,g.saved,g.target>0?+(g.saved/g.target*100).toFixed(0):0,g.date,g.note||'']) ],
-    'বিনিয়োগ':[ ['তারিখ','নাম','ধরন','ঝুঁকি','পরিমাণ','মন্তব্য'], ...byDateDesc(S.investments).map(i=>[i.date,i.name,(INV_TYPES[i.type]||i.type),(RISK[i.risk]||i.risk),i.amount,i.note||'']) ],
+    'বিনিয়োগ':[ ['তারিখ','নাম','ধরন','ঝুঁকি','লগ্নি','অবস্থা','প্রাপ্ত','লাভ/লস','ট্যাক্স','মন্তব্য'], ...byDateDesc(S.investments).map(i=>[i.date,i.name,(INV_TYPES[i.type]||i.type),(RISK[i.risk]||i.risk),i.amount,(i.matured?'ম্যাচিউরড':'সক্রিয়'),(i.matured?i.gross:''),(i.matured?i.profit:''),(i.matured?i.tax:''),i.note||'']) ],
     'ঋণ':[ ['তারিখ','নাম','বকেয়া','সুদ (%)','ন্যূনতম কিস্তি','মন্তব্য'], ...byDateDesc(S.debts).map(d=>[d.date,d.name,d.balance,d.rate,d.minPayment,d.note||'']) ],
   };
   const fname=`orthosathi-records-${curMonthKey()}`;
@@ -1439,7 +1613,7 @@ function bindView(){
     if(!from||!to) return flash('tr-amt');
     if(from===to){ flash('tr-to'); return; }
     if(amt<=0) return flash('tr-amt');
-    addAndSave('transfers',{id:id(),from,to,amount:amt,date,note:val('tr-note')});
+    addAndSave('transfers',{id:id(),from,to,amount:amt,charge:numv('tr-charge'),date,note:val('tr-note')});
   });
   document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{expFilter=b.dataset.f;render();});
 
@@ -1500,6 +1674,14 @@ function bindView(){
     addMovement({id:id(),date,account:acc,amount:amt,dir:'out',kind:'invest',ref,note:'জমা'});
     await save(); render();
   });
+  on('iv-redeem','onclick',async()=>{
+    const ref=val('iv-inv'), gross=numv('iv-gross'), tax=numv('iv-tax'), acc=val('iv-acc'), date=val('iv-date')||today();
+    const inv=(S.investments||[]).find(x=>x.id===ref);
+    if(!inv) return; if(gross<=0) return flash('iv-gross'); if(!acc) return flash('iv-acc');
+    inv.matured=true; inv.maturedDate=date; inv.gross=gross; inv.tax=tax; inv.profit=gross-inv.amount; inv.net=gross-tax;
+    addMovement({id:id(),date,account:acc,amount:Math.max(0,gross-tax),dir:'in',kind:'invest_redeem',ref:inv.id,note:'ম্যাচিউরিটি'});
+    await save(); render();
+  });
   on('gc-add','onclick',async()=>{
     const ref=val('gc-goal'), amt=numv('gc-amt'), acc=val('gc-acc'), date=val('gc-date')||today();
     if(!ref){ return; } if(amt<=0) return flash('gc-amt'); if(!acc) return flash('gc-acc');
@@ -1522,13 +1704,116 @@ function bindView(){
     await save(); render();
   });
   on('reset-btn','onclick',async()=>{ if(confirm('সব তথ্য মুছে যাবে। নিশ্চিত?')){ S=seed(); await save(); go('dash'); } });
+  on('hide-btn','onclick',async()=>{ SET.hideBalance=!SET.hideBalance; await saveSettings(); render(); });
+  on('lock-btn','onclick',()=>{ if(SET.pinHash) showLock('enter'); else showLock('set'); });
+  on('change-pin','onclick',()=>showLock('change'));
+  on('goto-coach','onclick',()=>go('coach'));
+  on('backup-btn','onclick',backupData);
+  const _rf=document.getElementById('restore-file');
+  on('restore-btn','onclick',()=>{ if(_rf) _rf.click(); });
+  if(_rf) _rf.onchange=()=>{ if(_rf.files&&_rf.files[0]) restoreData(_rf.files[0]); };
 }
 function val(idn){const e=document.getElementById(idn);return e?String(e.value).trim():'';}
 function numv(idn){const e=document.getElementById(idn);return e?(parseFloat(e.value)||0):0;}
 function flash(idn){const e=document.getElementById(idn);if(e){e.style.borderColor='var(--neg)';setTimeout(()=>e.style.borderColor='',900);}}
 
+/* ---------- Data backup / restore (file-based) ---------- */
+function backupData(){
+  const payload={app:'orthosathi',key:KEY,exportedAt:new Date().toISOString(),data:S,settings:{hideBalance:SET.hideBalance}};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='orthosathi-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+}
+function restoreData(file){
+  const r=new FileReader();
+  r.onload=async()=>{
+    let p; try{ p=JSON.parse(r.result); }catch(e){ alert('ফাইলটি পড়া যায়নি — সঠিক ব্যাকআপ ফাইল নির্বাচন করুন।'); return; }
+    const d=(p&&p.data)?p.data:p;
+    if(!d||!Array.isArray(d.incomes)||!Array.isArray(d.expenses)){ alert('এটি অর্থসাথীর সঠিক ব্যাকআপ ফাইল নয়।'); return; }
+    if(!confirm('বর্তমান সব তথ্য মুছে এই ব্যাকআপ থেকে পুনরুদ্ধার হবে। নিশ্চিত?')) return;
+    S=d; await save(); await load(); // load() re-applies safety defaults
+    if(p&&p.settings&&typeof p.settings.hideBalance==='boolean'){ SET.hideBalance=p.settings.hideBalance; await saveSettings(); }
+    renderNav(); go('dash'); alert('পুনরুদ্ধার সফল হয়েছে।');
+  };
+  r.readAsText(file);
+}
+
+/* ---------- PIN lock screen ---------- */
+let pinEntry='', pinTemp='', pinMode='enter';
+function pinDots(){ return `<div class="pin-dots" id="pin-dots">${[0,1,2,3].map(i=>`<i class="${i<pinEntry.length?'on':''}"></i>`).join('')}</div>`; }
+function lockMsg(){
+  if(pinMode==='enter') return 'আপনার ৪-ডিজিট পিন দিন';
+  if(pinMode==='set'||pinMode==='change') return pinTemp? 'নিশ্চিত করতে আবার দিন' : 'নতুন ৪-ডিজিট পিন তৈরি করুন';
+  return '';
+}
+function showLock(mode){
+  pinMode=mode||'enter'; pinEntry=''; pinTemp='';
+  let el=document.getElementById('lockscreen');
+  if(!el){ el=document.createElement('div'); el.id='lockscreen'; el.className='lock'; document.body.appendChild(el); }
+  const cancelable=(pinMode==='change');
+  el.innerHTML=`<div class="lock-card">
+    <div class="lock-mark">৳</div>
+    <h2>অর্থসাথী</h2>
+    <p id="lock-msg">${lockMsg()}</p>
+    ${pinDots()}
+    <div class="keypad" id="keypad">
+      ${[1,2,3,4,5,6,7,8,9].map(d=>`<button data-d="${d}">${d}</button>`).join('')}
+      <button class="blank"></button>
+      <button data-d="0">0</button>
+      <button class="fn" data-act="del">⌫</button>
+    </div>
+    ${pinMode==='enter'?`<span class="lock-link" id="forgot-pin">পিন ভুলে গেছেন?</span>`:''}
+    ${cancelable?`<span class="lock-link" id="cancel-pin">বাতিল</span>`:''}
+  </div>`;
+  document.body.classList.add('locked');
+  el.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>pinPress(b.dataset.d));
+  el.querySelector('[data-act="del"]').onclick=pinDel;
+  const fp=document.getElementById('forgot-pin'); if(fp) fp.onclick=forgotPin;
+  const cp=document.getElementById('cancel-pin'); if(cp) cp.onclick=removeLock;
+}
+function removeLock(){ const el=document.getElementById('lockscreen'); if(el) el.remove(); document.body.classList.remove('locked'); pinEntry=''; pinTemp=''; }
+function refreshDots(err){
+  const d=document.getElementById('pin-dots'); if(d) d.outerHTML=pinDots();
+  const m=document.getElementById('lock-msg'); if(m){ m.textContent=lockMsg(); m.classList.toggle('lock-err',!!err); }
+}
+function pinPress(d){
+  if(pinEntry.length>=4) return;
+  pinEntry+=String(d); refreshDots();
+  if(pinEntry.length===4) setTimeout(processPin,160);
+}
+function pinDel(){ if(pinEntry.length){ pinEntry=pinEntry.slice(0,-1); refreshDots(); } }
+async function processPin(){
+  if(pinMode==='enter'){
+    if(hashPin(pinEntry)===SET.pinHash){ removeLock(); }
+    else { pinEntry=''; const m=document.getElementById('lock-msg'); if(m){ m.textContent='ভুল পিন, আবার চেষ্টা করুন'; m.classList.add('lock-err'); } refreshDots(true); }
+    return;
+  }
+  // set / change
+  if(!pinTemp){ pinTemp=pinEntry; pinEntry=''; refreshDots(); return; }
+  if(pinEntry===pinTemp){
+    SET.pinHash=hashPin(pinEntry); await saveSettings(); removeLock();
+  } else {
+    pinTemp=''; pinEntry=''; const m=document.getElementById('lock-msg'); if(m){ m.textContent='পিন মেলেনি, নতুন করে দিন'; m.classList.add('lock-err'); } refreshDots(true);
+  }
+}
+async function forgotPin(){
+  if(!confirm('পিন রিসেট করতে হলে নিরাপত্তার জন্য সব আর্থিক তথ্য মুছে যাবে এবং নতুন করে শুরু হবে। নিশ্চিত?')) return;
+  S=seed(); await save(); SET={pinHash:null,hideBalance:false}; await saveSettings();
+  renderNav(); render(); showLock('set');
+}
+document.addEventListener('keydown',e=>{
+  if(!document.getElementById('lockscreen')) return;
+  if(e.key>='0'&&e.key<='9') pinPress(e.key);
+  else if(e.key==='Backspace') pinDel();
+});
+
 /* ---------- boot ---------- */
-(async function(){ await load(); renderNav(); render(); })();
+(async function(){
+  await load(); await loadSettings();
+  renderNav(); render();
+  showLock(SET.pinHash ? 'enter' : 'set');
+})();
 </script>
 </body>
 </html>
