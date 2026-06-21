@@ -873,7 +873,37 @@ function viewDash(){
       <button class="btn ghost" id="reset-btn">সব রিসেট করুন</button>
       <input type="file" id="restore-file" accept="application/json,.json" style="display:none">
     </div>
-  </div>`;
+  </div>
+  <details class="card" style="margin-top:16px">
+    <summary style="cursor:pointer;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px">${ICONS.download} কীভাবে ব্যাকআপ ও রিস্টোর করবেন? <span style="font-size:12px;color:var(--ink-3);font-weight:400">(চাপ দিয়ে খুলুন)</span></summary>
+    <div style="margin-top:14px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
+      <p style="margin:0 0 14px">আপনার সব হিসাব শুধু <b>এই ব্রাউজারেই</b> জমা থাকে। ফোন/ব্রাউজার বদলালে বা ডিলিট হলে তথ্য হারাতে পারে। তাই মাঝে মাঝে ব্যাকআপ নিয়ে রাখুন — খুব সহজ।</p>
+
+      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🔹 ব্যাকআপ নেবেন যেভাবে (তথ্য সেভ করে রাখা)</div>
+      <ol style="margin:0 0 14px;padding-left:20px">
+        <li>উপরের <b>"ব্যাকআপ ফাইল"</b> বোতামে চাপুন।</li>
+        <li>একটি ফাইল নামবে (নাম হবে <span class="num">orthosathi-backup-…json</span>)।</li>
+        <li>ফাইলটি নিরাপদ জায়গায় রাখুন — সবচেয়ে সহজ: <b>নিজের ইমেইলে নিজেকে পাঠিয়ে দিন</b>, অথবা <b>Google Drive / WhatsApp-এ "নিজের নম্বরে"</b> পাঠিয়ে রাখুন।</li>
+        <li>ব্যস! এটি আপনার তথ্যের নিরাপদ কপি।</li>
+      </ol>
+      <div class="alert tip" style="margin-bottom:16px"><span class="ai">i</span><div>মাসে অন্তত একবার, বা বড় কোনো হিসাব যোগ করার পর ব্যাকআপ নিন।</div></div>
+
+      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🔹 অন্য ফোন/ব্রাউজারে তথ্য ফেরাবেন যেভাবে (রিস্টোর)</div>
+      <ol style="margin:0 0 14px;padding-left:20px">
+        <li>নতুন ফোন/ব্রাউজারে এই সাইটটি খুলুন।</li>
+        <li>আগে রেখে দেওয়া <span class="num">…json</span> ব্যাকআপ ফাইলটি নামিয়ে নিন (ইমেইল/Drive থেকে)।</li>
+        <li>উপরের <b>"রিস্টোর"</b> বোতামে চাপুন → ওই ফাইলটি বেছে দিন।</li>
+        <li>কয়েক সেকেন্ডেই আপনার সব তথ্য ফিরে আসবে।</li>
+      </ol>
+
+      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">⚠️ কয়েকটি জরুরি কথা</div>
+      <ul style="margin:0;padding-left:20px">
+        <li>ব্যাকআপ ফাইলটি <b>খুলে এডিট করবেন না</b> — তাহলে রিস্টোর নষ্ট হতে পারে।</li>
+        <li>রিস্টোর করলে ওই ব্রাউজারের <b>বর্তমান তথ্য মুছে</b> ব্যাকআপের তথ্য বসবে — দরকারে আগে বর্তমান তথ্যের ব্যাকআপ নিন।</li>
+        <li>ফাইলটি ব্যক্তিগত — যাকে-তাকে পাঠাবেন না।</li>
+      </ul>
+    </div>
+  </details>`;
 }
 
 /* =========================================================
