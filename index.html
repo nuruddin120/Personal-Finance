@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="অর্থসাথী — AI কোচ, ক্লাউড লগইন, রিমাইন্ডার ও ডার্ক মোডসহ পিন-সুরক্ষিত ব্যক্তিগত অর্থ ব্যবস্থাপনা।">
+<meta name="description" content="অর্থসাথী — আইডি লগইন, AI কোচ, রিমাইন্ডার ও ডার্ক মোডসহ পিন-সুরক্ষিত ব্যক্তিগত অর্থ ব্যবস্থাপনা।">
 <meta name="theme-color" content="#0b6e4f">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <meta property="og:title" content="অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা">
-<meta property="og:description" content="AI কোচ, ক্লাউড লগইন, অ্যাকাউন্ট, বাজেট, সঞ্চয়, বিনিয়োগ, ঋণ ও রিমাইন্ডার — সব এক জায়গায়।">
+<meta property="og:description" content="আইডি লগইন, AI কোচ, অ্যাকাউন্ট, বাজেট, সঞ্চয়, বিনিয়োগ, ঋণ — সব এক জায়গায়।">
 <meta property="og:type" content="website">
 <title>অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -662,7 +662,7 @@ const PAGES = [
   {id:'plan', label:'মাসিক পরিকল্পনা', group:'overview'},
   {id:'compare', label:'মাসিক তুলনা', group:'overview'},
   {id:'reminders', label:'রিমাইন্ডার', group:'overview'},
-  {id:'cloud', label:'ক্লাউড লগইন ও সিংক', group:'overview'},
+  {id:'cloud', label:'লগইন ও সিংক', group:'overview'},
   {id:'accounts', label:'অ্যাকাউন্ট ও লেনদেন', group:'track'},
   {id:'income', label:'আয়', group:'track'},
   {id:'expense', label:'ব্যয়', group:'track'},
@@ -1943,15 +1943,14 @@ function bindView(){
   on('acct-back','onclick',()=>go('accounts'));
   on('acct-range','onclick',()=>{ acctFrom=val('acct-from')||''; acctTo=val('acct-to')||''; render(); });
   on('acct-reset','onclick',()=>{ acctFrom=''; acctTo=''; render(); });
-  // Cloud sync
+  // Login & sync
   on('cl-cfg-save','onclick',async()=>{ const raw=val('cl-cfg').trim(); let c; try{ c=coerceConfig(raw); JSON.parse(c); }catch(e){ return alert('কনফিগ পড়া গেল না। Firebase থেকে পাওয়া পুরো অংশটি (apiKey সহ { } পর্যন্ত) বসান।'); } SET.firebaseConfig=c; await saveSettings(); fb=null; render(); });
   on('cl-cfg-edit','onclick',async()=>{ SET.firebaseConfig=''; await saveSettings(); fb=null; render(); });
-  on('cl-login','onclick',()=>{ const e=val('cl-email').trim(), p=val('cl-pass'); if(!e||!p) return alert('ইমেইল ও পাসওয়ার্ড দিন।'); cloudLogin(e,p); });
-  on('cl-signup','onclick',()=>{ const e=val('cl-email').trim(), p=val('cl-pass'); if(!e||p.length<6) return alert('ইমেইল দিন এবং পাসওয়ার্ড অন্তত ৬ অক্ষরের রাখুন।'); cloudSignup(e,p); });
+  on('cl-login','onclick',()=>{ const u=val('cl-uid').trim(), p=val('cl-pass'); if(!u||!p) return alert('ইউজার আইডি ও পাসওয়ার্ড দিন।'); cloudLogin(toUserEmail(u),p); });
+  on('cl-signup','onclick',()=>{ const u=val('cl-uid').trim(), p=val('cl-pass'); if(!u||p.length<6) return alert('ইউজার আইডি দিন এবং পাসওয়ার্ড অন্তত ৬ অক্ষরের রাখুন।'); cloudSignup(toUserEmail(u),p); });
   on('cl-logout','onclick',cloudLogout);
   on('cl-push','onclick',async()=>{ try{ await cloudPush(); alert('ক্লাউডে সেভ হয়েছে।'); }catch(e){ alert('সেভ ব্যর্থ: '+(e.message||e)); } });
   on('cl-pull','onclick',async()=>{ try{ await cloudPull(); }catch(e){ alert('আনতে ব্যর্থ: '+(e.message||e)); } });
-  on('cl-track-save','onclick',async()=>{ SET.trackingUrl=val('cl-track').trim(); await saveSettings(); alert('সংরক্ষিত হয়েছে।'); });
   on('theme-btn','onclick',async()=>{ SET.theme = effectiveDark()?'light':'dark'; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
   on('hide-btn','onclick',async()=>{
@@ -2197,13 +2196,15 @@ async function initFirebase(){
   fb.auth.onAuthStateChanged(u=>{ fbUser=u; if(current==='cloud') render(); });
   return fb;
 }
-async function cloudSignup(email,pass){ fbBusy=true; render(); try{ await initFirebase(); await fb.auth.createUserWithEmailAndPassword(email,pass); fbUser=fb.auth.currentUser; await cloudPush(); trackPing('signup'); alert('অ্যাকাউন্ট তৈরি হয়েছে ও ডেটা ক্লাউডে সংরক্ষিত হয়েছে।'); }catch(e){ alert('সাইনআপ ব্যর্থ: '+(e.message||e)); } fbBusy=false; render(); }
-async function cloudLogin(email,pass){ fbBusy=true; render(); try{ await initFirebase(); await fb.auth.signInWithEmailAndPassword(email,pass); fbUser=fb.auth.currentUser; await cloudPull(); trackPing('login'); }catch(e){ alert('লগইন ব্যর্থ: '+(e.message||e)); } fbBusy=false; render(); }
+async function cloudSignup(email,pass){ fbBusy=true; render(); try{ await initFirebase(); await fb.auth.createUserWithEmailAndPassword(email,pass); fbUser=fb.auth.currentUser; await cloudPush(); alert('আইডি তৈরি হয়েছে ও তথ্য ক্লাউডে সংরক্ষিত হয়েছে।'); }catch(e){ alert('তৈরি ব্যর্থ: '+(e.message||e)); } fbBusy=false; render(); }
+async function cloudLogin(email,pass){ fbBusy=true; render(); try{ await initFirebase(); await fb.auth.signInWithEmailAndPassword(email,pass); fbUser=fb.auth.currentUser; await cloudPull(); }catch(e){ alert('লগইন ব্যর্থ: '+(e.message||e)); } fbBusy=false; render(); }
 async function cloudLogout(){ try{ if(fb&&fb.auth) await fb.auth.signOut(); }catch(e){} fbUser=null; render(); }
 async function cloudPush(){ if(!fb||!fbUser) { if(parseCfg()){ await initFirebase(); } if(!fbUser) return; } await fb.db.collection('orthosathi').doc(fbUser.uid).set({data:S, updatedAt:Date.now(), profile:S.profile||{}}); }
 async function cloudPull(){ if(!fb||!fbUser) return; const doc=await fb.db.collection('orthosathi').doc(fbUser.uid).get(); if(doc.exists && doc.data().data){ S=doc.data().data; await save(); await load(); renderNav(); alert('ক্লাউড থেকে আপনার সংরক্ষিত ডেটা আনা হয়েছে।'); } else { await cloudPush(); } render(); }
 function trackPing(evt){ try{ if(!SET.trackingUrl) return; const body=JSON.stringify({event:evt||'visit', time:new Date().toISOString(), email:(fbUser&&fbUser.email)||'', name:(S.profile&&S.profile.name)||'', ua:navigator.userAgent}); fetch(SET.trackingUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body}); }catch(e){} }
 
+function toUserEmail(uid){ uid=(uid||'').trim(); return uid.includes('@')?uid:(uid.toLowerCase().replace(/[^a-z0-9._-]/g,'')+'@orthosathi.app'); }
+function uidDisplay(email){ return (email||'').replace(/@orthosathi\.app$/,''); }
 function viewCloud(){
   const cfg=parseCfg();
   let body='';
@@ -2216,22 +2217,23 @@ function viewCloud(){
     </div>`;
   } else if(!fbUser){
     body=`<div class="card pad-lg" style="margin-bottom:16px">
-      <h3>লগইন বা নতুন অ্যাকাউন্ট</h3>
-      <p style="font-size:13px;color:var(--ink-3);margin-bottom:12px">নতুন হলে ইমেইল ও পাসওয়ার্ড দিয়ে "অ্যাকাউন্ট তৈরি করুন"। আগের অ্যাকাউন্ট থাকলে "লগইন করুন" — অন্য ব্রাউজ়ারের ডেটাও চলে আসবে।</p>
+      <h3>লগইন বা নতুন আইডি তৈরি</h3>
+      <p style="font-size:13px;color:var(--ink-3);margin-bottom:12px">নতুন হলে একটি ইউজার আইডি ও পাসওয়ার্ড দিয়ে <b>"নতুন আইডি তৈরি করুন"</b>। আগের আইডি থাকলে <b>"লগইন করুন"</b> — অন্য ডিভাইসের সব তথ্য চলে আসবে।</p>
       <div class="form-row" style="margin-bottom:0;align-items:end">
-        <div class="field"><label>ইমেইল</label><input id="cl-email" type="email" placeholder="you@example.com"></div>
+        <div class="field"><label>ইউজার আইডি</label><input id="cl-uid" placeholder="যেমন: rahim2026"></div>
         <div class="field"><label>পাসওয়ার্ড (৬+ অক্ষর)</label><input id="cl-pass" type="password" placeholder="••••••"></div>
       </div>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
         <button class="btn" id="cl-login" ${fbBusy?'disabled':''}>${fbBusy?'অপেক্ষা করুন…':'লগইন করুন'}</button>
-        <button class="btn ghost" id="cl-signup" ${fbBusy?'disabled':''}>অ্যাকাউন্ট তৈরি করুন</button>
+        <button class="btn ghost" id="cl-signup" ${fbBusy?'disabled':''}>নতুন আইডি তৈরি করুন</button>
         <button class="btn-sm" id="cl-cfg-edit">কনফিগ বদলান</button>
       </div>
+      <div class="hint">ইউজার আইডি ইংরেজি অক্ষর/সংখ্যায় দিন (যেমন নাম+সাল)। আইডি ও পাসওয়ার্ড মনে রাখুন — এগুলো দিয়েই যেকোনো ডিভাইসে লগইন করবেন।</div>
     </div>`;
   } else {
     body=`<div class="card pad-lg" style="margin-bottom:16px">
-      <h3>সংযুক্ত আছেন ✓</h3>
-      <p style="font-size:13.5px;color:var(--ink-2);line-height:1.7">লগইন: <b>${esc(fbUser.email||'')}</b><br>আপনার ডেটা স্বয়ংক্রিয়ভাবে ক্লাউডে সংরক্ষিত হচ্ছে। যেকোনো ব্রাউজ়ার/ফোনে এই ইমেইল-পাসওয়ার্ড দিয়ে লগইন করলেই ডেটা ফিরে পাবেন।</p>
+      <h3>লগইন করা আছে ✓</h3>
+      <p style="font-size:13.5px;color:var(--ink-2);line-height:1.7">ইউজার আইডি: <b>${esc(uidDisplay(fbUser.email))}</b><br>আপনার তথ্য স্বয়ংক্রিয়ভাবে ক্লাউডে সংরক্ষিত হচ্ছে। যেকোনো ডিভাইস/ব্রাউজারে এই আইডি-পাসওয়ার্ড দিয়ে লগইন করলেই আপডেটেড সব তথ্য পাবেন।</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
         <button class="btn" id="cl-push">এখন ক্লাউডে সেভ করুন</button>
         <button class="btn ghost" id="cl-pull">ক্লাউড থেকে আনুন</button>
@@ -2239,17 +2241,11 @@ function viewCloud(){
       </div>
     </div>`;
   }
-  return topbar('ক্লাউড লগইন ও সিংক','ইমেইল দিয়ে ডেটা ব্যাকআপ — যেকোনো ব্রাউজ়ারে ফিরে পান') + body +
+  return topbar('লগইন ও সিংক','যেকোনো ডিভাইস থেকে আইডি দিয়ে লগইন করে সব তথ্য ফিরে পান') + body +
   `<div class="card pad-lg">
     <h3>কীভাবে সেটআপ করবেন?</h3>
-    <p style="font-size:13.5px;color:var(--ink-2);line-height:1.7">Firebase প্রজেক্ট তৈরি, ইমেইল লগইন চালু, কনফিগ বসানো এবং কে কে ব্যবহার করছে তা গুগল শীটে দেখার পূর্ণ ধাপে-ধাপে নির্দেশনা আলাদা গাইড ফাইলে দেওয়া আছে (এই চ্যাটে সংযুক্ত)। গাইড অনুসরণ করলে ১০–১৫ মিনিটেই হয়ে যাবে।</p>
-    <div class="hint">নোট: ক্লাউড ফিচার শুধু আপনার প্রকাশিত (ডিপ্লয় করা) সাইটে কাজ করবে — চ্যাটের প্রিভিউতে বাইরের সংযোগ বন্ধ থাকে।</div>
-  </div>
-  <div class="card pad-lg" style="margin-top:16px">
-    <h3>ব্যবহারকারী ট্র্যাকিং (গুগল শীট)</h3>
-    <p style="font-size:13px;color:var(--ink-3);margin-bottom:10px">কে কে সাইটটি ব্যবহার করছে তা একটি গুগল শীটে জমা করতে চাইলে, গাইড অনুযায়ী একটি Apps Script URL তৈরি করে নিচে বসান।</p>
-    <input id="cl-track" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(SET.trackingUrl||'')}" style="width:100%">
-    <button class="btn-sm" id="cl-track-save" style="margin-top:10px">URL সংরক্ষণ করুন</button>
+    <p style="font-size:13.5px;color:var(--ink-2);line-height:1.7">Firebase প্রজেক্ট তৈরি, লগইন চালু ও কনফিগ বসানোর পূর্ণ ধাপে-ধাপে নির্দেশনা আলাদা গাইড ফাইলে দেওয়া আছে (এই চ্যাটে সংযুক্ত)। ১০ মিনিটেই হয়ে যাবে।</p>
+    <div class="hint">নোট: লগইন/সিংক শুধু আপনার প্রকাশিত (লাইভ) সাইটে কাজ করবে — চ্যাটের প্রিভিউতে নয়।</div>
   </div>`;
 }
 
@@ -2260,7 +2256,7 @@ function viewCloud(){
   try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(SET.theme==='auto'){ applyTheme(); render(); } }); }catch(e){}
   renderNav(); render();
   startReminderTimer();
-  try{ if(parseCfg()){ initFirebase().catch(()=>{}); } trackPing('visit'); }catch(e){}
+  try{ if(parseCfg()) initFirebase().catch(()=>{}); }catch(e){}
   showLock(SET.pinHash ? 'enter' : 'set');
 })();
 </script>
