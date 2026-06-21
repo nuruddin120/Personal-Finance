@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="অর্থসাথী — AI কোচ, রিমাইন্ডার, বুকমার্ক ও ডার্ক মোডসহ পিন-সুরক্ষিত ব্যক্তিগত অর্থ ব্যবস্থাপনা।">
 <meta name="theme-color" content="#0b6e4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="অর্থসাথী">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <meta property="og:title" content="অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা">
 <meta property="og:description" content="AI কোচ, অ্যাকাউন্ট, বাজেট, সঞ্চয়, বিনিয়োগ, ঋণ ও রিমাইন্ডার — সব এক জায়গায়।">
@@ -263,8 +267,8 @@
     .sidebar{display:none}
     .mobtop{display:flex;position:sticky;top:0;z-index:30;background:var(--surface);border-bottom:1px solid var(--line);padding:12px 16px;justify-content:space-between;align-items:center}
     .mobtop .brand{padding:0;border:0;margin:0}
-    .mobnav{display:flex;gap:6px;overflow-x:auto;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:60px;z-index:20}
-    .mobnav button{flex:none;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:7px 13px;border-radius:var(--radius-sm);font-family:var(--body);font-size:13px;cursor:pointer;font-weight:500}
+    .mobnav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
+    .mobnav button{background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:8px 4px;border-radius:8px;font-family:var(--body);font-size:11.5px;line-height:1.25;cursor:pointer;font-weight:500;text-align:center;white-space:normal;min-height:38px}
     .mobnav button.active{border-color:var(--brand);color:var(--brand-d);background:var(--brand-bg);font-weight:600}
     .main{padding:18px 15px 60px}
     .g-4,.g-3,.g-2{grid-template-columns:1fr}
@@ -617,20 +621,20 @@ const ICONS={
 };
 
 const PAGES = [
-  {id:'dash', label:'ড্যাশবোর্ড', group:'overview'},
-  {id:'coach', label:'AI আর্থিক কোচ', group:'overview'},
-  {id:'plan', label:'মাসিক পরিকল্পনা', group:'overview'},
-  {id:'compare', label:'মাসিক তুলনা', group:'overview'},
-  {id:'reminders', label:'রিমাইন্ডার', group:'overview'},
-  {id:'accounts', label:'অ্যাকাউন্ট ও লেনদেন', group:'track'},
-  {id:'income', label:'আয়', group:'track'},
-  {id:'expense', label:'ব্যয়', group:'track'},
-  {id:'budget', label:'বাজেট', group:'track'},
-  {id:'goals', label:'সঞ্চয় ও লক্ষ্য', group:'grow'},
-  {id:'invest', label:'বিনিয়োগ', group:'grow'},
-  {id:'emergency', label:'ইমারজেন্সি ফান্ড', group:'grow'},
-  {id:'retire', label:'রিটায়ারমেন্ট', group:'grow'},
-  {id:'debt', label:'ঋণ ব্যবস্থাপনা', group:'manage'},
+  {id:'dash', label:'ড্যাশবোর্ড', short:'হোম', group:'overview'},
+  {id:'coach', label:'AI আর্থিক কোচ', short:'AI কোচ', group:'overview'},
+  {id:'plan', label:'মাসিক পরিকল্পনা', short:'পরিকল্পনা', group:'overview'},
+  {id:'compare', label:'মাসিক তুলনা', short:'তুলনা', group:'overview'},
+  {id:'reminders', label:'রিমাইন্ডার', short:'রিমাইন্ডার', group:'overview'},
+  {id:'accounts', label:'অ্যাকাউন্ট ও লেনদেন', short:'অ্যাকাউন্ট', group:'track'},
+  {id:'income', label:'আয়', short:'আয়', group:'track'},
+  {id:'expense', label:'ব্যয়', short:'ব্যয়', group:'track'},
+  {id:'budget', label:'বাজেট', short:'বাজেট', group:'track'},
+  {id:'goals', label:'সঞ্চয় ও লক্ষ্য', short:'লক্ষ্য', group:'grow'},
+  {id:'invest', label:'বিনিয়োগ', short:'বিনিয়োগ', group:'grow'},
+  {id:'emergency', label:'ইমারজেন্সি ফান্ড', short:'ইমারজেন্সি', group:'grow'},
+  {id:'retire', label:'রিটায়ারমেন্ট', short:'রিটায়ার', group:'grow'},
+  {id:'debt', label:'ঋণ ব্যবস্থাপনা', short:'ঋণ', group:'manage'},
 ];
 const GROUPS = {overview:'',track:'রেকর্ড',grow:'গড়ে তুলুন',manage:'ব্যবস্থাপনা'};
 let current='dash';
@@ -675,12 +679,12 @@ function renderNav(){
     nav.appendChild(navButton(p));
   });
 
-  // Mobile bar: favorites first so regular ones need no scrolling
+  // Mobile grid: favorites first, short labels, no horizontal scrolling
   const order=favs.concat(PAGES.filter(p=>!favs.includes(p)));
   order.forEach(p=>{
     const mb=document.createElement('button');
     mb.className=p.id===current?'active':'';
-    mb.textContent=((SET.favorites||[]).includes(p.id)?'★ ':'')+p.label;
+    mb.textContent=p.short||p.label;
     mb.onclick=()=>go(p.id);
     mob.appendChild(mb);
   });
@@ -864,6 +868,30 @@ function viewDash(){
         <li>রিস্টোর করলে ওই ব্রাউজারের <b>বর্তমান তথ্য মুছে</b> ব্যাকআপের তথ্য বসবে — দরকারে আগে বর্তমান তথ্যের ব্যাকআপ নিন।</li>
         <li>ফাইলটি ব্যক্তিগত — যাকে-তাকে পাঠাবেন না।</li>
       </ul>
+    </div>
+  </details>
+  <details class="card" style="margin-top:16px">
+    <summary style="cursor:pointer;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px">📲 ফোনে অ্যাপের মতো ব্যবহার করুন (হোম স্ক্রিনে যোগ করুন) <span style="font-size:12px;color:var(--ink-3);font-weight:400">(চাপ দিয়ে খুলুন)</span></summary>
+    <div style="margin-top:14px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
+      <p style="margin:0 0 14px">ব্রাউজার থেকে সাইটটি ফোনের হোম স্ক্রিনে যোগ করলে এটি একটি সাধারণ অ্যাপের মতো খুলবে — আলাদা আইকন থাকবে, বড় বড় ব্রাউজার-বার থাকবে না।</p>
+
+      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">📱 অ্যান্ড্রয়েড (Chrome ব্রাউজার)</div>
+      <ol style="margin:0 0 14px;padding-left:20px">
+        <li>এই সাইটটি Chrome-এ খুলুন।</li>
+        <li>উপরে-ডানে তিন-ডট মেনু <b>(⋮)</b> চাপুন।</li>
+        <li><b>"Add to Home screen"</b> বা <b>"Install app"</b> বেছে নিন।</li>
+        <li><b>"Add" / "Install"</b> চাপুন — হোম স্ক্রিনে অর্থসাথী আইকন চলে আসবে।</li>
+      </ol>
+
+      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🍎 আইফোন (Safari ব্রাউজার)</div>
+      <ol style="margin:0 0 14px;padding-left:20px">
+        <li>সাইটটি <b>Safari</b>-তে খুলুন।</li>
+        <li>নিচের (বা উপরের) <b>Share</b> বোতাম <b>(⬆️ বর্গাকার তীর)</b> চাপুন।</li>
+        <li>একটু নিচে নেমে <b>"Add to Home Screen"</b> বেছে নিন।</li>
+        <li>ডানে <b>"Add"</b> চাপুন।</li>
+      </ol>
+
+      <div class="alert tip" style="margin-bottom:0"><span class="ai">i</span><div>এরপর হোম স্ক্রিনের আইকনে চাপলেই অ্যাপের মতো খুলবে। তথ্য আগের মতোই ওই ব্রাউজারে সুরক্ষিত থাকবে — মাঝে মাঝে ব্যাকআপ নিতে ভুলবেন না।</div></div>
     </div>
   </details>
   <div class="card" style="margin-top:16px;text-align:center">
