@@ -522,6 +522,7 @@ function accSelect(selId, selected){
   if(!(S.accounts||[]).length) return `<select id="${selId}"><option value="">অ্যাকাউন্ট নেই</option></select>`;
   return `<select id="${selId}">${S.accounts.map((a,i)=>`<option value="${a.id}"${(selected!==undefined? a.id===selected : i===0)?' selected':''}>${esc(a.name)}</option>`).join('')}</select>`;
 }
+function cashAccId(){ const a=(S.accounts||[]); const ex=a.find(x=>x.name==='নগদ হাতে'); if(ex) return ex.id; const c=a.find(x=>x.type==='cash'); if(c) return c.id; return a.length?a[0].id:''; }
 function subLine(acc,note){ const p=[]; if(acc)p.push(acc); if(note)p.push(note); return p.length?`<div class="rownote">${p.map(esc).join(' · ')}</div>`:''; }
 function accNameOptions(type){
   const list=(S.categories[type]||[]);
@@ -1080,7 +1081,7 @@ function viewExpense(){
       <div class="field"><label>খরচের খাত</label>${catSelect('e-cat','expense','খাত নির্বাচন করুন')}</div>
       <div class="field sm"><label>পরিমাণ (৳)</label><input id="e-amt" class="num" type="number" placeholder="0"></div>
       <div class="field sm"><label>ধরন</label><select id="e-ess"><option value="essential">আবশ্যক</option><option value="flexible">মাঝামাঝি</option><option value="optional">অনাবশ্যক</option></select></div>
-      <div class="field sm"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('e-acc')}</div>
+      <div class="field sm"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('e-acc', cashAccId())}</div>
       <div class="field sm"><label>তারিখ</label><input id="e-date" type="date" value="${today()}"></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="e-note" placeholder="যেমন: ঈদের কেনাকাটা"></div>
       <button class="btn" id="e-add">যোগ করুন</button>
