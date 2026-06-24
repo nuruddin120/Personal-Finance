@@ -413,7 +413,7 @@ function fmtDate(iso){
   const [y,m,dd]=iso.split('-').map(Number);
   return new Date(y,m-1,dd).toLocaleDateString('bn-BD',{day:'numeric',month:'short'});
 }
-function byDateDesc(arr){ return [...arr].sort((a,b)=>(b.date||'').localeCompare(a.date||'')); }
+function byDateDesc(arr){ return arr.map((x,i)=>[x,i]).sort((a,b)=>(b[0].date||'').localeCompare(a[0].date||'') || (b[1]-a[1])).map(p=>p[0]); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function noteCell(n){ return n?`<div class="rownote">${esc(n)}</div>`:''; }
 function dAgo(monthsBack,day){ const d=new Date(); const dt=new Date(d.getFullYear(),d.getMonth()-monthsBack,Math.min(day,28)); return dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate()); }
@@ -948,7 +948,7 @@ function viewAccounts(){
     <div class="form-row" style="margin-bottom:0">
       <div class="field sm"><label>ধরন</label><select id="ac-type"><option value="bank">ব্যাংক</option><option value="wallet">মোবাইল ওয়ালেট</option><option value="cash">নগদ</option></select></div>
       <div class="field"><label>অ্যাকাউন্টের নাম</label>${accNameSelect('bank')}</div>
-      <div class="field sm"><label>বর্তমান ব্যালেন্স (৳)</label><input id="ac-open" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>বর্তমান ব্যালেন্স (৳)</label><input id="ac-open" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="ac-note" placeholder="যেমন: অ্যাকাউন্ট নম্বর"></div>
       <button class="btn" id="ac-add">যোগ করুন</button>
     </div>
@@ -961,8 +961,8 @@ function viewAccounts(){
     <div class="form-row">
       <div class="field"><label>যেখান থেকে</label>${accSelect('tr-from',(S.accounts[0]||{}).id)}</div>
       <div class="field"><label>যেখানে</label>${accSelect('tr-to',(S.accounts[1]||S.accounts[0]||{}).id)}</div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="tr-amt" class="num" type="number" placeholder="0"></div>
-      <div class="field sm"><label>চার্জ (৳)</label><input id="tr-charge" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="tr-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+      <div class="field sm"><label>চার্জ (৳)</label><input id="tr-charge" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field sm"><label>তারিখ</label><input id="tr-date" type="date" value="${today()}"></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="tr-note" placeholder="যেমন: ক্যাশ আউট"></div>
       <button class="btn" id="tr-add">ট্রান্সফার</button>
@@ -984,7 +984,7 @@ function viewAccounts(){
 /* ---- account statement (per-account transactions) ---- */
 let viewAccountId=null, acctFrom='', acctTo='';
 function openAccount(accId){ viewAccountId=accId; acctFrom=''; acctTo=''; current='acctview'; renderNav(); render(); try{window.scrollTo(0,0);}catch(e){} }
-const MOVE_LABEL={debt_pay:'ঋণ কিস্তি পরিশোধ',invest:'বিনিয়োগে জমা',goal:'লক্ষ্যে জমা',emergency:'ইমারজেন্সি ফান্ডে জমা',lend:'ধার দিলেন',lend_repay:'ধার ফেরত পেলেন',borrow:'ধার নিলেন',invest_redeem:'বিনিয়োগ নগদায়ন'};
+const MOVE_LABEL={debt_pay:'ঋণ কিস্তি পরিশোধ',invest:'বিনিয়োগে জমা',goal:'লক্ষ্যে জমা',emergency:'ইমারজেন্সি ফান্ডে জমা',lend:'ধার দিলেন',lend_repay:'ধার ফেরত পেলেন',borrow:'ধার নিলেন',invest_redeem:'বিনিয়োগ নগদায়ন',adjust:'ব্যালেন্স সমন্বয়'};
 function acctTransactions(accId){
   const out=[];
   S.incomes.filter(x=>x.account===accId).forEach(x=>out.push({date:x.date,label:x.source||'আয়',sub:x.note||'',amt:x.amount,arr:'incomes',id:x.id}));
@@ -1023,6 +1023,14 @@ function viewAccountDetail(){
        <button class="btn-sm" id="acct-reset">রিসেট (সর্বশেষ ১৫)</button>
      </div>
    </div>
+   <div class="card pad-lg" style="margin-bottom:16px">
+     <h3>ব্যালেন্স সমন্বয় করুন</h3>
+     <p style="font-size:13px;color:var(--ink-3);margin-bottom:10px">কোনো লেনদেন মিস হয়ে থাকলে এখানে এই অ্যাকাউন্টের <b>সঠিক বর্তমান ব্যালেন্স</b> লিখে দিন — পার্থক্যটুকু একটি "ব্যালেন্স সমন্বয়" এন্ট্রি হিসেবে যোগ হবে।</p>
+     <div class="form-row" style="margin-bottom:0;align-items:end">
+       <div class="field sm"><label>সঠিক ব্যালেন্স (৳)</label><input id="acct-adjust" class="num calc" type="text" inputmode="text" placeholder="${bal}"></div>
+       <button class="btn" id="acct-adjust-btn">সমন্বয় করুন</button>
+     </div>
+   </div>
    <div class="card pad-lg">
      <h3>${ranged?'নির্বাচিত সময়ের লেনদেন':'সর্বশেষ ১৫টি লেনদেন'}</h3>
      <table><thead><tr><th>তারিখ</th><th>বিবরণ</th><th class="r">পরিমাণ</th><th></th></tr></thead><tbody>
@@ -1048,7 +1056,7 @@ function viewIncome(){
   `<div class="card pad-lg" style="margin-bottom:16px">
     <div class="form-row">
       <div class="field"><label>আয়ের উৎস</label>${catSelect('i-src','income','উৎস নির্বাচন করুন')}</div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="i-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="i-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field sm"><label>যে অ্যাকাউন্টে</label>${accSelect('i-acc')}</div>
       <div class="field sm"><label>তারিখ</label><input id="i-date" type="date" value="${today()}"></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="i-note" placeholder="যেমন: জুন মাসের বেতন"></div>
@@ -1079,7 +1087,7 @@ function viewExpense(){
   `<div class="card pad-lg" style="margin-bottom:16px">
     <div class="form-row">
       <div class="field"><label>খরচের খাত</label>${catSelect('e-cat','expense','খাত নির্বাচন করুন')}</div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="e-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="e-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field sm"><label>ধরন</label><select id="e-ess"><option value="essential">আবশ্যক</option><option value="flexible">মাঝামাঝি</option><option value="optional">অনাবশ্যক</option></select></div>
       <div class="field sm"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('e-acc', cashAccId())}</div>
       <div class="field sm"><label>তারিখ</label><input id="e-date" type="date" value="${today()}"></div>
@@ -1128,7 +1136,7 @@ function viewBudget(){
   `<div class="card pad-lg" style="margin-bottom:16px">
     <div class="form-row" style="margin-bottom:0">
       <div class="field"><label>নতুন খাত</label>${catSelect('b-cat','expense','খাত নির্বাচন করুন')}</div>
-      <div class="field sm"><label>মাসিক বাজেট (৳)</label><input id="b-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>মাসিক বাজেট (৳)</label><input id="b-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <button class="btn" id="b-add">সেট করুন</button>
     </div>
   </div>
@@ -1154,9 +1162,9 @@ function viewGoals(){
   `<div class="card pad-lg" style="margin-bottom:16px">
     <div class="form-row">
       <div class="field"><label>লক্ষ্য</label>${catSelect('g-name','goal','লক্ষ্য নির্বাচন করুন')}</div>
-      <div class="field sm"><label>মোট দরকার (৳)</label><input id="g-target" class="num" type="number" placeholder="0"></div>
-      <div class="field sm"><label>এখন জমা (৳)</label><input id="g-saved" class="num" type="number" placeholder="0"></div>
-      <div class="field sm"><label>মাসিক বরাদ্দ (৳)</label><input id="g-monthly" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>মোট দরকার (৳)</label><input id="g-target" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+      <div class="field sm"><label>এখন জমা (৳)</label><input id="g-saved" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+      <div class="field sm"><label>মাসিক বরাদ্দ (৳)</label><input id="g-monthly" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="g-note" placeholder="যেমন: ২০২৭ সালের মধ্যে"></div>
       <button class="btn" id="g-add">যোগ করুন</button>
     </div>
@@ -1165,7 +1173,7 @@ function viewGoals(){
     <h3>লক্ষ্যে জমা দিন</h3>
     <div class="form-row" style="margin-bottom:0">
       <div class="field"><label>কোন লক্ষ্যে</label><select id="gc-goal">${S.goals.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="gc-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="gc-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('gc-acc')}</div>
       <div class="field sm"><label>তারিখ</label><input id="gc-date" type="date" value="${today()}"></div>
       <button class="btn" id="gc-add">জমা দিন</button>
@@ -1229,7 +1237,7 @@ function viewInvest(){
     <div class="form-row" style="margin-bottom:0">
       <div class="field"><label>বিনিয়োগের নাম</label>${catSelect('v-name','invest','বিনিয়োগ নির্বাচন করুন')}</div>
       <div class="field sm"><label>ধরন</label>${invTypeSelect()}</div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="v-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="v-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field sm"><label>ঝুঁকি</label><select id="v-risk"><option value="low">কম</option><option value="medium">মাঝারি</option><option value="high">উচ্চ</option></select></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="v-note" placeholder="যেমন: ব্রোকার / অ্যাকাউন্ট নম্বর"></div>
       <button class="btn" id="v-add">যোগ করুন</button>
@@ -1239,7 +1247,7 @@ function viewInvest(){
     <h3>বিনিয়োগে জমা দিন (যেমন মাসিক DPS)</h3>
     <div class="form-row" style="margin-bottom:0">
       <div class="field"><label>কোন বিনিয়োগে</label><select id="ic-inv">${active.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('')}</select></div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="ic-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="ic-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('ic-acc')}</div>
       <div class="field sm"><label>তারিখ</label><input id="ic-date" type="date" value="${today()}"></div>
       <button class="btn" id="ic-add">জমা দিন</button>
@@ -1250,8 +1258,8 @@ function viewInvest(){
     <h3>বিনিয়োগ ম্যাচিউর / নগদায়ন</h3>
     <div class="form-row" style="margin-bottom:0">
       <div class="field"><label>কোন বিনিয়োগ</label><select id="iv-inv">${active.map(i=>`<option value="${i.id}">${esc(i.name)} — লগ্নি ${bdt(i.amount)}</option>`).join('')}</select></div>
-      <div class="field sm"><label>প্রাপ্ত মোট (৳)</label><input id="iv-gross" class="num" type="number" placeholder="0"></div>
-      <div class="field sm"><label>লাভের ওপর ট্যাক্স (৳)</label><input id="iv-tax" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>প্রাপ্ত মোট (৳)</label><input id="iv-gross" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+      <div class="field sm"><label>লাভের ওপর ট্যাক্স (৳)</label><input id="iv-tax" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field"><label>যে অ্যাকাউন্টে জমা</label>${accSelect('iv-acc')}</div>
       <div class="field sm"><label>তারিখ</label><input id="iv-date" type="date" value="${today()}"></div>
       <button class="btn" id="iv-redeem">নগদায়ন</button>
@@ -1310,9 +1318,9 @@ function viewEmergency(){
     <div class="card pad-lg">
       <h3>লক্ষ্য নির্ধারণ</h3>
       <div class="form-row" style="margin-bottom:0">
-        <div class="field"><label>এখন জমা আছে (৳)</label><input id="ef-cur" class="num" type="number" value="${S.emergency.current}"></div>
-        <div class="field sm"><label>কত মাসের খরচ?</label><input id="ef-months" class="num" type="number" value="${S.emergency.monthsTarget}"></div>
-        <div class="field sm"><label>মাসিক বরাদ্দ (৳)</label><input id="ef-monthly" class="num" type="number" value="${S.emergency.monthly||0}"></div>
+        <div class="field"><label>এখন জমা আছে (৳)</label><input id="ef-cur" class="num calc" type="text" inputmode="text" value="${S.emergency.current}"></div>
+        <div class="field sm"><label>কত মাসের খরচ?</label><input id="ef-months" class="num calc" type="text" inputmode="text" value="${S.emergency.monthsTarget}"></div>
+        <div class="field sm"><label>মাসিক বরাদ্দ (৳)</label><input id="ef-monthly" class="num calc" type="text" inputmode="text" value="${S.emergency.monthly||0}"></div>
       </div>
       <div class="hint">চলতি মাসের অপরিহার্য খরচ <b class="num">${bdt(t.ess)}</b> অনুযায়ী লক্ষ্য হিসাব হয়। মাসিক বরাদ্দ পরিকল্পনায় ব্যবহৃত হয়।</div>
       <button class="btn" id="ef-save" style="margin-top:14px">সংরক্ষণ করুন</button>
@@ -1330,7 +1338,7 @@ function viewEmergency(){
   <div class="card pad-lg" style="margin-top:16px">
     <h3>ইমারজেন্সি ফান্ডে জমা দিন</h3>
     <div class="form-row" style="margin-bottom:0">
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="ec-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="ec-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('ec-acc')}</div>
       <div class="field sm"><label>তারিখ</label><input id="ec-date" type="date" value="${today()}"></div>
       <button class="btn" id="ec-add">জমা দিন</button>
@@ -1355,11 +1363,11 @@ function viewRetire(){
   `<div class="grid g-2">
     <div class="card pad-lg">
       <h3>আপনার পরিকল্পনা</h3>
-      <div class="form-row"><div class="field sm"><label>বর্তমান বয়স</label><input id="r-cur" class="num" type="number" value="${r.currentAge}"></div>
-        <div class="field sm"><label>অবসরের বয়স</label><input id="r-ret" class="num" type="number" value="${r.retireAge}"></div></div>
-      <div class="form-row"><div class="field"><label>বর্তমান জমা (৳)</label><input id="r-sav" class="num" type="number" value="${r.currentSavings}"></div>
-        <div class="field sm"><label>মাসিক জমা (৳)</label><input id="r-mon" class="num" type="number" value="${r.monthlyContribution}"></div>
-        <div class="field sm"><label>প্রত্যাশিত রিটার্ন (%)</label><input id="r-ror" class="num" type="number" value="${r.expectedReturn}"></div></div>
+      <div class="form-row"><div class="field sm"><label>বর্তমান বয়স</label><input id="r-cur" class="num calc" type="text" inputmode="text" value="${r.currentAge}"></div>
+        <div class="field sm"><label>অবসরের বয়স</label><input id="r-ret" class="num calc" type="text" inputmode="text" value="${r.retireAge}"></div></div>
+      <div class="form-row"><div class="field"><label>বর্তমান জমা (৳)</label><input id="r-sav" class="num calc" type="text" inputmode="text" value="${r.currentSavings}"></div>
+        <div class="field sm"><label>মাসিক জমা (৳)</label><input id="r-mon" class="num calc" type="text" inputmode="text" value="${r.monthlyContribution}"></div>
+        <div class="field sm"><label>প্রত্যাশিত রিটার্ন (%)</label><input id="r-ror" class="num calc" type="text" inputmode="text" value="${r.expectedReturn}"></div></div>
       <div class="hint">গণনা আনুমানিক — মূল্যস্ফীতি ও বাজার পরিবর্তনশীল।</div>
       <button class="btn" id="r-save" style="margin-top:6px">সংরক্ষণ করুন</button>
     </div>
@@ -1396,7 +1404,7 @@ function viewDebt(){
       ${d.note?`<div class="rownote" style="margin-top:6px">${esc(d.note)}</div>`:''}
       ${done?`<div class="alert good" style="margin-top:12px"><span class="ai">✓</span><div>এই ঋণ পরিশোধ সম্পন্ন।</div></div>`:`
       <div class="form-row" style="margin:12px 0 0;align-items:end">
-        <div class="field sm"><label>কিস্তি (৳)</label><input id="pay-amt-${d.id}" class="num" type="number" value="${d.minPayment||''}" placeholder="0"></div>
+        <div class="field sm"><label>কিস্তি (৳)</label><input id="pay-amt-${d.id}" class="num calc" type="text" inputmode="text" value="${d.minPayment||''}" placeholder="0"></div>
         <div class="field"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('pay-acc-'+d.id)}</div>
         <div class="field sm"><label>তারিখ</label><input id="pay-date-${d.id}" type="date" value="${today()}"></div>
         <button class="btn" data-pay="${d.id}">পরিশোধ</button>
@@ -1418,7 +1426,7 @@ function viewDebt(){
       ${l.note?`<div class="rownote" style="margin-top:6px">${esc(l.note)}</div>`:''}
       ${done?`<div class="alert good" style="margin-top:12px"><span class="ai">✓</span><div>পুরো টাকা ফেরত পাওয়া হয়েছে।</div></div>`:`
       <div class="form-row" style="margin:12px 0 0;align-items:end">
-        <div class="field sm"><label>ফেরত (৳)</label><input id="lr-amt-${l.id}" class="num" type="number" placeholder="0"></div>
+        <div class="field sm"><label>ফেরত (৳)</label><input id="lr-amt-${l.id}" class="num calc" type="text" inputmode="text" placeholder="0"></div>
         <div class="field"><label>যে অ্যাকাউন্টে</label>${accSelect('lr-acc-'+l.id)}</div>
         <div class="field sm"><label>তারিখ</label><input id="lr-date-${l.id}" type="date" value="${today()}"></div>
         <button class="btn" data-lendrepay="${l.id}">ফেরত পেলাম</button>
@@ -1438,9 +1446,9 @@ function viewDebt(){
     <h3>নতুন ঋণ যোগ করুন</h3>
     <div class="form-row">
       <div class="field"><label>ঋণের নাম</label>${catSelect('d-name','debt','ঋণ নির্বাচন করুন')}</div>
-      <div class="field sm"><label>বকেয়া (৳)</label><input id="d-bal" class="num" type="number" placeholder="0"></div>
-      <div class="field sm"><label>সুদ (%/বছর)</label><input id="d-rate" class="num" type="number" placeholder="0"></div>
-      <div class="field sm"><label>মাসিক কিস্তি (৳)</label><input id="d-min" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>বকেয়া (৳)</label><input id="d-bal" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+      <div class="field sm"><label>সুদ (%/বছর)</label><input id="d-rate" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+      <div class="field sm"><label>মাসিক কিস্তি (৳)</label><input id="d-min" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field"><label>ধার নিলে টাকা যে অ্যাকাউন্টে এসেছে</label><select id="d-acc">${accOpt('')}</select></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="d-note" placeholder="যেমন: কার কাছ থেকে / কিস্তির তারিখ"></div>
       <button class="btn" id="d-add">যোগ করুন</button>
@@ -1457,7 +1465,7 @@ function viewDebt(){
     <h3>নতুন ধার যোগ করুন</h3>
     <div class="form-row" style="margin-bottom:0">
       <div class="field"><label>কাকে দিলেন</label><input id="l-person" placeholder="ব্যক্তির নাম"></div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="l-amt" class="num" type="number" placeholder="0"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="l-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
       <div class="field"><label>যে অ্যাকাউন্ট থেকে দিলেন</label>${accSelect('l-acc')}</div>
       <div class="field sm"><label>তারিখ</label><input id="l-date" type="date" value="${today()}"></div>
       <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="l-note" placeholder="যেমন: ফেরতের তারিখ"></div>
@@ -1834,6 +1842,7 @@ async function delItem(arrName,itemId){
 function bindView(){
   document.querySelectorAll('[data-del]').forEach(b=>{ b.onclick=(e)=>{ e.stopPropagation(); confirmDelete(()=>delItem(b.dataset.del,b.dataset.id)); }; });
   document.querySelectorAll('[data-acct]').forEach(c=>{ c.onclick=()=>openAccount(c.dataset.acct); });
+  document.querySelectorAll('.calc').forEach(inp=>{ inp.onblur=()=>{ const v=String(inp.value).trim(); if(v && /[+\-*/×÷]/.test(v.slice(1))){ const r=evalAmount(v); if(isFinite(r)) inp.value=String(Math.round(r*100)/100); } }; });
   const _ex=document.getElementById('export-btn'); if(_ex) _ex.onclick=exportData;
   const _gp=document.getElementById('goto-plan'); if(_gp) _gp.onclick=()=>go('plan');
   const _ap=document.getElementById('apply-plan'); if(_ap) _ap.onclick=()=>{ if(confirm('এই মাসের বরাদ্দকৃত টাকা ইমারজেন্সি ফান্ড, লক্ষ্য ও রিটায়ারমেন্টের জমায় যোগ হবে। নিশ্চিত?')) applyPlan(); };
@@ -1971,6 +1980,14 @@ function bindView(){
   on('acct-back','onclick',()=>go('accounts'));
   on('acct-range','onclick',()=>{ acctFrom=val('acct-from')||''; acctTo=val('acct-to')||''; render(); });
   on('acct-reset','onclick',()=>{ acctFrom=''; acctTo=''; render(); });
+  on('acct-adjust-btn','onclick',async()=>{
+    const e=document.getElementById('acct-adjust'); if(!e||!String(e.value).trim()) return alert('সঠিক ব্যালেন্স লিখুন।');
+    const target=evalAmount(e.value), cur=accBalance(viewAccountId), diff=Math.round((target-cur)*100)/100;
+    if(diff===0){ return alert('ব্যালেন্স ইতিমধ্যে ঠিক আছে — সমন্বয়ের দরকার নেই।'); }
+    if(!confirm(`ব্যালেন্স ${bdt(cur)} থেকে ${bdt(target)} করা হবে (সমন্বয় ${diff>0?'+':'−'}${bdt(Math.abs(diff))})। নিশ্চিত?`)) return;
+    addMovement({id:id(),date:today(),account:viewAccountId,amount:Math.abs(diff),dir:diff>0?'in':'out',kind:'adjust',ref:null,note:'ব্যালেন্স সমন্বয়'});
+    await save(); render();
+  });
   on('theme-btn','onclick',async()=>{ SET.theme = effectiveDark()?'light':'dark'; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
   on('hide-btn','onclick',async()=>{
@@ -2007,7 +2024,18 @@ function bindView(){
   on('rmd-daily-x','onclick',async()=>{ SET.dailyDismissedDate=today(); await saveSettings(); render(); });
 }
 function val(idn){const e=document.getElementById(idn);return e?String(e.value).trim():'';}
-function numv(idn){const e=document.getElementById(idn);return e?(parseFloat(e.value)||0):0;}
+function bnToEn(s){ return String(s).replace(/[০-৯]/g,d=>'০১২৩৪৫৬৭৮৯'.indexOf(d)); }
+function evalAmount(raw){
+  if(raw==null) return 0;
+  let s=bnToEn(String(raw)).trim();
+  if(!s) return 0;
+  s=s.replace(/^=/,'').replace(/,/g,'').replace(/\s+/g,'').replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-');
+  if(/^[0-9+\-*/().]+$/.test(s)){
+    try{ const r=Function('"use strict";return ('+s+')')(); if(typeof r==='number' && isFinite(r)) return r; }catch(e){}
+  }
+  const p=parseFloat(s); return isFinite(p)?p:0;
+}
+function numv(idn){const e=document.getElementById(idn);return e?evalAmount(e.value):0;}
 function flash(idn){const e=document.getElementById(idn);if(e){e.style.borderColor='var(--neg)';setTimeout(()=>e.style.borderColor='',900);}}
 
 /* ---------- Reminders ---------- */
