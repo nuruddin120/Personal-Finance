@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা</title>
+<title>FinMate — ব্যক্তিগত অর্থ ব্যবস্থাপনা</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -342,14 +342,14 @@
   <aside class="sidebar">
     <div class="brand">
       <div class="mark">৳</div>
-      <div><h1>অর্থসাথী</h1><span>OrthoSathi · ব্যক্তিগত অর্থ</span></div>
+      <div><h1>FinMate</h1><span>ব্যক্তিগত অর্থ ব্যবস্থাপনা</span></div>
     </div>
     <nav class="nav" id="nav"></nav>
   </aside>
 
   <!-- Mobile -->
   <div class="mobtop">
-    <div class="brand"><div class="mark">৳</div><div><h1 style="font-size:17px">অর্থসাথী</h1></div></div>
+    <div class="brand"><div class="mark">৳</div><div><h1 style="font-size:17px">FinMate</h1></div></div>
   </div>
   <div class="mobnav" id="mobnav"></div>
 
@@ -358,7 +358,7 @@
 
 <script>
 /* =========================================================
-   অর্থসাথী — ব্যক্তিগত অর্থ ব্যবস্থাপনা (single-file prototype)
+   FinMate — Personal Finance Tracker
    স্টোরেজ: Claude artifact হলে window.storage, নইলে localStorage,
    কোনোটাই না থাকলে in-memory.
    ========================================================= */
@@ -380,14 +380,14 @@ const Store = {
 };
 
 /* ---------- App settings: PIN + balance privacy ---------- */
-const SKEY='orthosathi_settings';
+const SKEY='finmate_settings';
 let SET={ pinHash:null, hideBalance:false, hideCoach:false, theme:'light', favorites:['dash','expense','accounts'], dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
 function systemDark(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }catch(e){ return false; } }
 function effectiveDark(){ return SET.theme==='dark' || (SET.theme==='auto' && systemDark()); }
 function applyTheme(){ try{ document.documentElement.setAttribute('data-theme', effectiveDark()?'dark':'light'); }catch(e){} }
 async function loadSettings(){ const s=await Store.get(SKEY); if(s) SET={...SET,...s}; }
 async function saveSettings(){ await Store.set(SKEY,SET); }
-function hashPin(p){ let h=2166136261>>>0; const str='orthosathi:'+p; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return 'p'+h.toString(36); }
+function hashPin(p){ let h=2166136261>>>0; const str='finmate:'+p; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return 'p'+h.toString(36); }
 
 /* ---------- Date helpers ---------- */
 function id(){ return Math.random().toString(36).slice(2,9); }
@@ -411,7 +411,7 @@ function monthKeyAgo(monthsBack){ const d=new Date(); const dt=new Date(d.getFul
 
 /* ---------- State ---------- */
 let S = null;
-const KEY='orthosathi_v5';
+const KEY='finmate_v1';
 
 function seed(){
   return {
@@ -617,6 +617,7 @@ const PAGES = [
   {id:'plan', label:'মাসিক পরিকল্পনা', short:'পরিকল্পনা', group:'overview'},
   {id:'compare', label:'মাসিক তুলনা', short:'তুলনা', group:'overview'},
   {id:'reminders', label:'রিমাইন্ডার', short:'রিমাইন্ডার', group:'overview'},
+  {id:'guide', label:'নির্দেশনা', short:'নির্দেশনা', group:'overview'},
   {id:'accounts', label:'অ্যাকাউন্ট ও লেনদেন', short:'অ্যাকাউন্ট', group:'track'},
   {id:'income', label:'আয়', short:'আয়', group:'track'},
   {id:'expense', label:'ব্যয়', short:'ব্যয়', group:'track'},
@@ -697,7 +698,7 @@ function topbar(title,sub){
 function render(){
   const v=document.getElementById('view');
   v.innerHTML = reminderBanner() + ({
-    dash:viewDash, coach:viewCoach, plan:viewPlan, compare:viewCompare, reminders:viewReminders, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
+    dash:viewDash, coach:viewCoach, plan:viewPlan, compare:viewCompare, reminders:viewReminders, guide:viewGuide, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
     goals:viewGoals, invest:viewInvest, emergency:viewEmergency, retire:viewRetire,
     debt:viewDebt, acctview:viewAccountDetail
   })[current]();
@@ -831,64 +832,10 @@ function viewDash(){
       <input type="file" id="restore-file" accept="application/json,.json" style="display:none">
     </div>
   </div>
-  <details class="card" style="margin-top:16px">
-    <summary style="cursor:pointer;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px">${ICONS.download} কীভাবে ব্যাকআপ ও রিস্টোর করবেন? <span style="font-size:12px;color:var(--ink-3);font-weight:400">(চাপ দিয়ে খুলুন)</span></summary>
-    <div style="margin-top:14px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
-      <p style="margin:0 0 14px">আপনার সব হিসাব শুধু <b>এই ব্রাউজারেই</b> জমা থাকে। ফোন/ব্রাউজার বদলালে বা ডিলিট হলে তথ্য হারাতে পারে। তাই মাঝে মাঝে ব্যাকআপ নিয়ে রাখুন — খুব সহজ।</p>
-
-      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🔹 ব্যাকআপ নেবেন যেভাবে (তথ্য সেভ করে রাখা)</div>
-      <ol style="margin:0 0 14px;padding-left:20px">
-        <li>উপরের <b>"ব্যাকআপ ফাইল"</b> বোতামে চাপুন।</li>
-        <li>একটি ফাইল নামবে (নাম হবে <span class="num">orthosathi-backup-…json</span>)।</li>
-        <li>ফাইলটি নিরাপদ জায়গায় রাখুন — সবচেয়ে সহজ: <b>নিজের ইমেইলে নিজেকে পাঠিয়ে দিন</b>, অথবা <b>Google Drive / WhatsApp-এ "নিজের নম্বরে"</b> পাঠিয়ে রাখুন।</li>
-        <li>ব্যস! এটি আপনার তথ্যের নিরাপদ কপি।</li>
-      </ol>
-      <div class="alert tip" style="margin-bottom:16px"><span class="ai">i</span><div>মাসে অন্তত একবার, বা বড় কোনো হিসাব যোগ করার পর ব্যাকআপ নিন।</div></div>
-
-      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🔹 অন্য ফোন/ব্রাউজারে তথ্য ফেরাবেন যেভাবে (রিস্টোর)</div>
-      <ol style="margin:0 0 14px;padding-left:20px">
-        <li>নতুন ফোন/ব্রাউজারে এই সাইটটি খুলুন।</li>
-        <li>আগে রেখে দেওয়া <span class="num">…json</span> ব্যাকআপ ফাইলটি নামিয়ে নিন (ইমেইল/Drive থেকে)।</li>
-        <li>উপরের <b>"রিস্টোর"</b> বোতামে চাপুন → ওই ফাইলটি বেছে দিন।</li>
-        <li>কয়েক সেকেন্ডেই আপনার সব তথ্য ফিরে আসবে।</li>
-      </ol>
-
-      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">⚠️ কয়েকটি জরুরি কথা</div>
-      <ul style="margin:0;padding-left:20px">
-        <li>ব্যাকআপ ফাইলটি <b>খুলে এডিট করবেন না</b> — তাহলে রিস্টোর নষ্ট হতে পারে।</li>
-        <li>রিস্টোর করলে ওই ব্রাউজারের <b>বর্তমান তথ্য মুছে</b> ব্যাকআপের তথ্য বসবে — দরকারে আগে বর্তমান তথ্যের ব্যাকআপ নিন।</li>
-        <li>ফাইলটি ব্যক্তিগত — যাকে-তাকে পাঠাবেন না।</li>
-      </ul>
-    </div>
-  </details>
-  <details class="card" style="margin-top:16px">
-    <summary style="cursor:pointer;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px">📲 ফোনে অ্যাপের মতো ব্যবহার করুন (হোম স্ক্রিনে যোগ করুন) <span style="font-size:12px;color:var(--ink-3);font-weight:400">(চাপ দিয়ে খুলুন)</span></summary>
-    <div style="margin-top:14px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
-      <p style="margin:0 0 14px">ব্রাউজার থেকে সাইটটি ফোনের হোম স্ক্রিনে যোগ করলে এটি একটি সাধারণ অ্যাপের মতো খুলবে — আলাদা আইকন থাকবে, বড় বড় ব্রাউজার-বার থাকবে না।</p>
-
-      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">📱 অ্যান্ড্রয়েড (Chrome ব্রাউজার)</div>
-      <ol style="margin:0 0 14px;padding-left:20px">
-        <li>এই সাইটটি Chrome-এ খুলুন।</li>
-        <li>উপরে-ডানে তিন-ডট মেনু <b>(⋮)</b> চাপুন।</li>
-        <li><b>"Add to Home screen"</b> বা <b>"Install app"</b> বেছে নিন।</li>
-        <li><b>"Add" / "Install"</b> চাপুন — হোম স্ক্রিনে অর্থসাথী আইকন চলে আসবে।</li>
-      </ol>
-
-      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🍎 আইফোন (Safari ব্রাউজার)</div>
-      <ol style="margin:0 0 14px;padding-left:20px">
-        <li>সাইটটি <b>Safari</b>-তে খুলুন।</li>
-        <li>নিচের (বা উপরের) <b>Share</b> বোতাম <b>(⬆️ বর্গাকার তীর)</b> চাপুন।</li>
-        <li>একটু নিচে নেমে <b>"Add to Home Screen"</b> বেছে নিন।</li>
-        <li>ডানে <b>"Add"</b> চাপুন।</li>
-      </ol>
-
-      <div class="alert tip" style="margin-bottom:0"><span class="ai">i</span><div>এরপর হোম স্ক্রিনের আইকনে চাপলেই অ্যাপের মতো খুলবে। তথ্য আগের মতোই ওই ব্রাউজারে সুরক্ষিত থাকবে — মাঝে মাঝে ব্যাকআপ নিতে ভুলবেন না।</div></div>
-    </div>
-  </details>
   <div class="card" style="margin-top:16px;text-align:center">
     <div style="font-size:12px;color:var(--ink-3);letter-spacing:.3px;margin-bottom:5px">ডেভেলপ করেছেন</div>
     <div style="font-weight:700;font-size:16px;margin-bottom:12px">Md. Nur Uddin Mahmud</div>
-    <a href="https://wa.me/8801521222707?text=${encodeURIComponent('আসসালামু আলাইকুম, অর্থসাথী সাইট সম্পর্কে আমার একটি মেসেজ/পরামর্শ আছে: ')}" target="_blank" rel="noopener"
+    <a href="https://wa.me/8801521222707?text=${encodeURIComponent('আসসালামু আলাইকুম, FinMate সাইট সম্পর্কে আমার একটি মেসেজ/পরামর্শ আছে: ')}" target="_blank" rel="noopener"
        style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;background:#25D366;color:#fff;font-weight:600;font-size:13.5px;padding:9px 18px;border-radius:8px">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 2a10 10 0 00-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm5.8 14.2c-.2.7-1.4 1.3-2 1.4-.5.1-1.1.1-1.8-.1-.4-.1-1-.3-1.6-.6-2.9-1.3-4.8-4.2-4.9-4.4-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.1.1.3 0 .5l-.4.5-.3.3c-.1.1-.3.3-.1.6.1.3.7 1.1 1.4 1.8.9.8 1.7 1.1 2 1.2.2.1.4.1.5-.1l.7-.8c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.5.3.1.2.1.7-.1 1.4z"/></svg>
       হোয়াটসঅ্যাপে মেসেজ দিন
@@ -1744,7 +1691,7 @@ function exportData(){
   const t=totals(), h=healthScore(), s=monthsSeries(6);
   const sheets={
     'সারসংক্ষেপ':[
-      ['অর্থসাথী — রেকর্ড','রপ্তানির তারিখ: '+new Date().toLocaleDateString('bn-BD')],
+      ['FinMate — রেকর্ড','রপ্তানির তারিখ: '+new Date().toLocaleDateString('bn-BD')],
       [],
       ['বিবরণ','মান (৳)'],
       ['চলতি মাসের আয়',t.income],
@@ -1770,7 +1717,7 @@ function exportData(){
     'বিনিয়োগ':[ ['তারিখ','নাম','ধরন','ঝুঁকি','লগ্নি','অবস্থা','প্রাপ্ত','লাভ/লস','ট্যাক্স','মন্তব্য'], ...byDateDesc(S.investments).map(i=>[i.date,i.name,(INV_TYPES[i.type]||i.type),(RISK[i.risk]||i.risk),i.amount,(i.matured?'ম্যাচিউরড':'সক্রিয়'),(i.matured?i.gross:''),(i.matured?i.profit:''),(i.matured?i.tax:''),i.note||'']) ],
     'ঋণ':[ ['তারিখ','নাম','বকেয়া','সুদ (%)','ন্যূনতম কিস্তি','মন্তব্য'], ...byDateDesc(S.debts).map(d=>[d.date,d.name,d.balance,d.rate,d.minPayment,d.note||'']) ],
   };
-  const fname=`orthosathi-records-${curMonthKey()}`;
+  const fname=`finmate-records-${curMonthKey()}`;
 
   if(window.XLSX){
     const wb=XLSX.utils.book_new();
@@ -2006,7 +1953,7 @@ function bindView(){
   on('rm-backup-save','onclick',async()=>{ SET.backupReminder=val('rm-backup')==='on'; SET.backupDismissedMonth=''; await saveSettings(); render(); });
   on('rm-ics','onclick',downloadICS);
   on('rm-notif','onclick',enableNotif);
-  on('rm-wa','onclick',()=>{ window.open('https://wa.me/?text='+encodeURIComponent('অর্থসাথী রিমাইন্ডার: আজকের আয়-ব্যয় এন্ট্রি দিন। আর মাস শেষে ডেটা ব্যাকআপ করতে ভুলবেন না।'),'_blank'); });
+  on('rm-wa','onclick',()=>{ window.open('https://wa.me/?text='+encodeURIComponent('FinMate রিমাইন্ডার: আজকের আয়-ব্যয় এন্ট্রি দিন। আর মাস শেষে ডেটা ব্যাকআপ করতে ভুলবেন না।'),'_blank'); });
   // Reminder banners
   on('rmd-backup','onclick',backupData);
   on('rmd-backup-x','onclick',async()=>{ SET.backupDismissedMonth=curMonthKey(); await saveSettings(); render(); });
@@ -2083,19 +2030,19 @@ function downloadICS(){
   const n=new Date(); const y=n.getFullYear(), mo=pad(n.getMonth()+1);
   const lastDay=pad(new Date(n.getFullYear(),n.getMonth()+1,0).getDate());
   const dt=`${y}${mo}${pad(n.getDate())}`, stamp=`${dt}T000000`;
-  const ev=(uid,start,rrule,summary)=>['BEGIN:VEVENT',`UID:${uid}-${Date.now()}@orthosathi`,`DTSTAMP:${stamp}`,`DTSTART:${start}`,`RRULE:${rrule}`,`SUMMARY:${summary}`,'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY','DESCRIPTION:অর্থসাথী','END:VALARM','END:VEVENT'];
-  const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//OrthoSathi//Reminder//BN','CALSCALE:GREGORIAN',
-    ...ev('daily',`${dt}T${hh}${mm}00`,'FREQ=DAILY','অর্থসাথী: আজকের আয়-ব্যয় এন্ট্রি দিন'),
-    ...ev('bk28',`${y}${mo}28T200000`,'FREQ=MONTHLY;BYMONTHDAY=28','অর্থসাথী: মাস শেষের আগে — ডেটা ব্যাকআপ করুন'),
-    ...ev('bklast',`${y}${mo}${lastDay}T201500`,'FREQ=MONTHLY;BYMONTHDAY=-1','অর্থসাথী: আজ মাসের শেষ দিন — ব্যাকআপ নিশ্চিত করুন'),
+  const ev=(uid,start,rrule,summary)=>['BEGIN:VEVENT',`UID:${uid}-${Date.now()}@finmate`,`DTSTAMP:${stamp}`,`DTSTART:${start}`,`RRULE:${rrule}`,`SUMMARY:${summary}`,'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY','DESCRIPTION:FinMate','END:VALARM','END:VEVENT'];
+  const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//FinMate//Reminder//BN','CALSCALE:GREGORIAN',
+    ...ev('daily',`${dt}T${hh}${mm}00`,'FREQ=DAILY','FinMate: আজকের আয়-ব্যয় এন্ট্রি দিন'),
+    ...ev('bk28',`${y}${mo}28T200000`,'FREQ=MONTHLY;BYMONTHDAY=28','FinMate: মাস শেষের আগে — ডেটা ব্যাকআপ করুন'),
+    ...ev('bklast',`${y}${mo}${lastDay}T201500`,'FREQ=MONTHLY;BYMONTHDAY=-1','FinMate: আজ মাসের শেষ দিন — ব্যাকআপ নিশ্চিত করুন'),
     'END:VCALENDAR'];
   const blob=new Blob([L.join('\r\n')],{type:'text/calendar;charset=utf-8'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='orthosathi-reminders.ics';
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='finmate-reminders.ics';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
 }
 function enableNotif(){
   if(!('Notification' in window)){ alert('এই ব্রাউজারে নোটিফিকেশন সমর্থিত নয়।'); return; }
-  Notification.requestPermission().then(p=>{ if(p==='granted'){ SET.notifyEnabled=true; saveSettings(); try{ new Notification('অর্থসাথী',{body:'নোটিফিকেশন চালু হয়েছে।'}); }catch(e){} } });
+  Notification.requestPermission().then(p=>{ if(p==='granted'){ SET.notifyEnabled=true; saveSettings(); try{ new Notification('FinMate',{body:'নোটিফিকেশন চালু হয়েছে।'}); }catch(e){} } });
 }
 function startReminderTimer(){
   setInterval(()=>{ try{
@@ -2104,17 +2051,17 @@ function startReminderTimer(){
     const now=new Date(); const hhmm=pad(now.getHours())+':'+pad(now.getMinutes());
     if(hhmm===(SET.dailyTime||'21:00') && SET.lastNotifyDate!==today() && !hasEntryToday()){
       SET.lastNotifyDate=today(); saveSettings();
-      new Notification('অর্থসাথী রিমাইন্ডার',{body:'আজকের আয়-ব্যয় এন্ট্রি দিতে ভুলবেন না।'});
+      new Notification('FinMate রিমাইন্ডার',{body:'আজকের আয়-ব্যয় এন্ট্রি দিতে ভুলবেন না।'});
     }
   }catch(e){} }, 30000);
 }
 
 /* ---------- Data backup / restore (file-based) ---------- */
 function backupData(){
-  const payload={app:'orthosathi',key:KEY,exportedAt:new Date().toISOString(),data:S,settings:{hideBalance:SET.hideBalance}};
+  const payload={app:'finmate',key:KEY,exportedAt:new Date().toISOString(),data:S,settings:{hideBalance:SET.hideBalance}};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='orthosathi-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.download='finmate-backup-'+new Date().toISOString().slice(0,10)+'.json';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
 }
 function restoreData(file){
@@ -2122,7 +2069,7 @@ function restoreData(file){
   r.onload=async()=>{
     let p; try{ p=JSON.parse(r.result); }catch(e){ alert('ফাইলটি পড়া যায়নি — সঠিক ব্যাকআপ ফাইল নির্বাচন করুন।'); return; }
     const d=(p&&p.data)?p.data:p;
-    if(!d||!Array.isArray(d.incomes)||!Array.isArray(d.expenses)){ alert('এটি অর্থসাথীর সঠিক ব্যাকআপ ফাইল নয়।'); return; }
+    if(!d||!Array.isArray(d.incomes)||!Array.isArray(d.expenses)){ alert('এটি FinMate-এর সঠিক ব্যাকআপ ফাইল নয়।'); return; }
     if(!confirm('বর্তমান সব তথ্য মুছে এই ব্যাকআপ থেকে পুনরুদ্ধার হবে। নিশ্চিত?')) return;
     S=d; await save(); await load(); // load() re-applies safety defaults
     if(p&&p.settings&&typeof p.settings.hideBalance==='boolean'){ SET.hideBalance=p.settings.hideBalance; await saveSettings(); }
@@ -2147,7 +2094,7 @@ function showLock(mode){
   const cancelable=(pinMode==='change'||pinMode==='reveal');
   el.innerHTML=`<div class="lock-card">
     <div class="lock-mark">৳</div>
-    <h2>অর্থসাথী</h2>
+    <h2>FinMate</h2>
     <p id="lock-msg">${lockMsg()}</p>
     ${pinDots()}
     <div class="keypad" id="keypad">
@@ -2205,6 +2152,60 @@ document.addEventListener('keydown',e=>{
   if(e.key>='0'&&e.key<='9') pinPress(e.key);
   else if(e.key==='Backspace') pinDel();
 });
+
+/* ---------- guide ---------- */
+function viewGuide(){
+  return topbar('নির্দেশনা','ব্যাকআপ, রিস্টোর ও অ্যাপের মতো ব্যবহারের সহজ গাইড') +
+  `<div class="card pad-lg" style="margin-bottom:16px">
+    <h3 style="margin-bottom:4px">${ICONS.download} কীভাবে ব্যাকআপ ও রিস্টোর করবেন?</h3>
+    <p style="font-size:13px;color:var(--ink-3);margin:0 0 16px">আপনার সব হিসাব শুধু <b>এই ব্রাউজারেই</b> জমা থাকে। ফোন/ব্রাউজার বদলালে বা ডিলিট হলে তথ্য হারাতে পারে। তাই মাঝে মাঝে ব্যাকআপ নিয়ে রাখুন।</p>
+
+    <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🔹 ব্যাকআপ নেবেন যেভাবে</div>
+    <ol style="margin:0 0 14px;padding-left:20px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
+      <li>ড্যাশবোর্ড → <b>"নিরাপত্তা ও ডেটা"</b> → <b>"ব্যাকআপ ফাইল"</b> বোতামে চাপুন।</li>
+      <li>একটি ফাইল নামবে (নাম: <span class="num">finmate-backup-…json</span>)।</li>
+      <li>ফাইলটি নিরাপদ জায়গায় রাখুন — <b>নিজের ইমেইলে নিজেকে পাঠিয়ে দিন</b>, অথবা <b>Google Drive / WhatsApp-এ "নিজের নম্বরে"</b> পাঠিয়ে রাখুন।</li>
+    </ol>
+    <div class="alert tip" style="margin-bottom:16px"><span class="ai">i</span><div>মাসে অন্তত একবার, বা বড় কোনো হিসাব যোগ করার পর ব্যাকআপ নিন।</div></div>
+
+    <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🔹 অন্য ডিভাইসে তথ্য ফেরাবেন যেভাবে (রিস্টোর)</div>
+    <ol style="margin:0 0 14px;padding-left:20px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
+      <li>নতুন ফোন/ব্রাউজারে এই সাইটটি খুলুন।</li>
+      <li>আগে রেখে দেওয়া <span class="num">…json</span> ফাইলটি নামিয়ে নিন।</li>
+      <li>ড্যাশবোর্ড → <b>"রিস্টোর"</b> বোতামে চাপুন → ফাইলটি বেছে দিন।</li>
+      <li>কয়েক সেকেন্ডেই সব তথ্য ফিরে আসবে।</li>
+    </ol>
+
+    <div style="font-weight:600;color:var(--ink);margin-bottom:6px">⚠️ জরুরি কথা</div>
+    <ul style="margin:0;padding-left:20px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
+      <li>ব্যাকআপ ফাইল <b>খুলে এডিট করবেন না</b> — রিস্টোর নষ্ট হতে পারে।</li>
+      <li>রিস্টোর করলে বর্তমান তথ্য মুছে ব্যাকআপের তথ্য বসবে।</li>
+      <li>ফাইলটি ব্যক্তিগত — যাকে-তাকে পাঠাবেন না।</li>
+    </ul>
+  </div>
+
+  <div class="card pad-lg">
+    <h3 style="margin-bottom:4px">📲 ফোনে অ্যাপের মতো ব্যবহার করুন</h3>
+    <p style="font-size:13px;color:var(--ink-3);margin:0 0 16px">হোম স্ক্রিনে যোগ করলে আলাদা আইকন থাকবে, ব্রাউজার-বার থাকবে না — একদম অ্যাপের মতো খুলবে।</p>
+
+    <div style="font-weight:600;color:var(--ink);margin-bottom:6px">📱 অ্যান্ড্রয়েড (Chrome)</div>
+    <ol style="margin:0 0 16px;padding-left:20px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
+      <li>এই সাইটটি Chrome-এ খুলুন।</li>
+      <li>উপরে-ডানে তিন-ডট মেনু <b>(⋮)</b> চাপুন।</li>
+      <li><b>"Add to Home screen"</b> বা <b>"Install app"</b> বেছে নিন।</li>
+      <li><b>"Add" / "Install"</b> চাপুন — হোম স্ক্রিনে FinMate আইকন চলে আসবে।</li>
+    </ol>
+
+    <div style="font-weight:600;color:var(--ink);margin-bottom:6px">🍎 আইফোন (Safari)</div>
+    <ol style="margin:0 0 14px;padding-left:20px;font-size:13.5px;line-height:1.75;color:var(--ink-2)">
+      <li>সাইটটি <b>Safari</b>-তে খুলুন।</li>
+      <li>নিচের <b>Share</b> বোতাম <b>(⬆️)</b> চাপুন।</li>
+      <li><b>"Add to Home Screen"</b> বেছে নিন।</li>
+      <li>ডানে <b>"Add"</b> চাপুন।</li>
+    </ol>
+    <div class="alert tip" style="margin-bottom:0"><span class="ai">i</span><div>হোম স্ক্রিনে যোগ করার পরেও তথ্য ওই ব্রাউজারেই থাকে — মাঝে মাঝে ব্যাকআপ নিতে ভুলবেন না।</div></div>
+  </div>`;
+}
 
 /* ---------- boot ---------- */
 (async function(){
