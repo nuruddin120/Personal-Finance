@@ -471,7 +471,15 @@ function seed(){
 
 async function save(){ await Store.set(profileKey(),S); }
 async function load(){
-  S = await Store.get(profileKey());
+  // migrate old 'finmate_v1' data to profile key if needed
+  const oldKey='finmate_v1';
+  const pk=profileKey();
+  let existing=await Store.get(pk);
+  if(!existing){
+    const old=await Store.get(oldKey);
+    if(old){ existing=old; await Store.set(pk,old); }
+  }
+  S = existing;
   if(!S){ S = seed(); await save(); }
   if(!S.categories) S.categories = seed().categories; // safety for old data
   else { const sc=seed().categories; Object.keys(sc).forEach(k=>{ if(!Array.isArray(S.categories[k])) S.categories[k]=sc[k]; }); }
