@@ -330,6 +330,13 @@
   .modal-card{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.3);padding:22px}
   .modal-card h3{margin:0 0 6px;font-size:16px}
   .modal-card p{font-size:13.5px;color:var(--ink-2);line-height:1.6;margin-bottom:14px}
+  /* Quick Add FAB */
+  #qa-fab{position:fixed;bottom:88px;right:20px;z-index:800;width:52px;height:52px;border-radius:50%;background:var(--brand);color:#fff;font-size:26px;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .15s}
+  #qa-fab:active{transform:scale(.92)}
+  #qa-modal .modal-card{max-width:420px}
+  .qa-tabs{display:flex;gap:6px;margin-bottom:16px}
+  .qa-tabs button{flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink-2);font-family:var(--body);font-size:13px;cursor:pointer;font-weight:500}
+  .qa-tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
   .modal-chk{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2);margin-bottom:18px;cursor:pointer;user-select:none}
   .modal-chk input{width:16px;height:16px;accent-color:var(--brand);cursor:pointer}
   .modal-act{display:flex;gap:10px;justify-content:flex-end}
@@ -381,12 +388,27 @@ const Store = {
 
 /* ---------- App settings: PIN + balance privacy ---------- */
 const SKEY='finmate_settings';
-let SET={ pinHash:null, hideBalance:false, hideCoach:false, theme:'light', favorites:['dash','expense','accounts'], dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'' };
+let SET={ pinHash:null, hideBalance:false, hideCoach:false, theme:'light', accentColor:'#0b6e4f', favorites:['dash','expense','accounts'], dailyReminder:false, dailyTime:'21:00', backupReminder:true, backupDismissedMonth:'', dailyDismissedDate:'', notifyEnabled:false, lastNotifyDate:'', activeProfile:'default', profiles:[{id:'default',name:'আমার হিসাব'}] };
 function systemDark(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }catch(e){ return false; } }
 function effectiveDark(){ return SET.theme==='dark' || (SET.theme==='auto' && systemDark()); }
-function applyTheme(){ try{ document.documentElement.setAttribute('data-theme', effectiveDark()?'dark':'light'); }catch(e){} }
-async function loadSettings(){ const s=await Store.get(SKEY); if(s) SET={...SET,...s}; }
+function applyTheme(){
+  try{
+    document.documentElement.setAttribute('data-theme', effectiveDark()?'dark':'light');
+    if(SET.accentColor && SET.accentColor!=='#0b6e4f'){
+      const r=document.documentElement.style;
+      r.setProperty('--brand', SET.accentColor);
+      r.setProperty('--brand-d', SET.accentColor);
+      // derive a light bg tint
+      r.setProperty('--brand-bg', SET.accentColor+'18');
+    } else {
+      const r=document.documentElement.style;
+      r.removeProperty('--brand'); r.removeProperty('--brand-d'); r.removeProperty('--brand-bg');
+    }
+  }catch(e){}
+}
+async function loadSettings(){ const s=await Store.get(SKEY); if(s){ SET={...SET,...s}; if(!Array.isArray(SET.profiles)||!SET.profiles.length) SET.profiles=[{id:'default',name:'আমার হিসাব'}]; if(!SET.activeProfile) SET.activeProfile='default'; } }
 async function saveSettings(){ await Store.set(SKEY,SET); }
+function profileKey(){ return 'finmate_v1_'+(SET.activeProfile||'default'); }
 function hashPin(p){ let h=2166136261>>>0; const str='finmate:'+p; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return 'p'+h.toString(36); }
 
 /* ---------- Date helpers ---------- */
@@ -440,12 +462,16 @@ function seed(){
     lent:[],
     movements:[],
     plan:{ appliedMonths:[] },
+    recurring:[],
+    bills:[],
+    netWorthHistory:[],
+    challenges:[],
   };
 }
 
-async function save(){ await Store.set(KEY,S); }
+async function save(){ await Store.set(profileKey(),S); }
 async function load(){
-  S = await Store.get(KEY);
+  S = await Store.get(profileKey());
   if(!S){ S = seed(); await save(); }
   if(!S.categories) S.categories = seed().categories; // safety for old data
   else { const sc=seed().categories; Object.keys(sc).forEach(k=>{ if(!Array.isArray(S.categories[k])) S.categories[k]=sc[k]; }); }
@@ -463,6 +489,10 @@ async function load(){
   (S.goals||[]).forEach(g=>{ if(g.monthly===undefined) g.monthly = 0; });
   (S.expenses||[]).forEach(x=>{ if(!x.priority) x.priority = x.essential?'essential':'optional'; });
   if(!Array.isArray(S.categories.invtypes)) S.categories.invtypes = [];
+  if(!Array.isArray(S.recurring)) S.recurring=[];
+  if(!Array.isArray(S.bills)) S.bills=[];
+  if(!Array.isArray(S.netWorthHistory)) S.netWorthHistory=[];
+  if(!Array.isArray(S.challenges)) S.challenges=[];
 }
 
 /* ---------- Money helpers ---------- */
@@ -618,6 +648,8 @@ const PAGES = [
   {id:'compare', label:'মাসিক তুলনা', short:'তুলনা', group:'overview'},
   {id:'reminders', label:'রিমাইন্ডার', short:'রিমাইন্ডার', group:'overview'},
   {id:'guide', label:'নির্দেশনা', short:'নির্দেশনা', group:'overview'},
+  {id:'recurring', label:'নিয়মিত লেনদেন', short:'নিয়মিত', group:'track'},
+  {id:'bills', label:'বিল ট্র্যাকার', short:'বিল', group:'track'},
   {id:'accounts', label:'অ্যাকাউন্ট ও লেনদেন', short:'অ্যাকাউন্ট', group:'track'},
   {id:'income', label:'আয়', short:'আয়', group:'track'},
   {id:'expense', label:'ব্যয়', short:'ব্যয়', group:'track'},
@@ -627,6 +659,9 @@ const PAGES = [
   {id:'emergency', label:'ইমারজেন্সি ফান্ড', short:'ইমারজেন্সি', group:'grow'},
   {id:'retire', label:'রিটায়ারমেন্ট', short:'রিটায়ার', group:'grow'},
   {id:'debt', label:'ঋণ ব্যবস্থাপনা', short:'ঋণ', group:'manage'},
+  {id:'heatmap', label:'খরচের হিটম্যাপ', short:'হিটম্যাপ', group:'track'},
+  {id:'challenge', label:'মাসিক চ্যালেঞ্জ', short:'চ্যালেঞ্জ', group:'overview'},
+  {id:'profiles', label:'পরিবার মোড', short:'প্রোফাইল', group:'manage'},
 ];
 const GROUPS = {overview:'',track:'রেকর্ড',grow:'গড়ে তুলুন',manage:'ব্যবস্থাপনা'};
 let current='dash';
@@ -700,7 +735,8 @@ function render(){
   v.innerHTML = reminderBanner() + ({
     dash:viewDash, coach:viewCoach, plan:viewPlan, compare:viewCompare, reminders:viewReminders, guide:viewGuide, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
     goals:viewGoals, invest:viewInvest, emergency:viewEmergency, retire:viewRetire,
-    debt:viewDebt, acctview:viewAccountDetail
+    debt:viewDebt, acctview:viewAccountDetail, recurring:viewRecurring, bills:viewBills,
+    heatmap:viewHeatmap, challenge:viewChallenge, profiles:viewProfiles
   })[current]();
   bindView();
 }
@@ -748,12 +784,14 @@ function miniCard(title,rows){
 }
 function viewDash(){
   const t=totals(); const h=healthScore();
+  const streak=calcStreak();
   const essPct = t.expense>0? t.ess/t.expense*100:0;
   const monthsCovered = t.ess>0 ? S.emergency.current/t.ess : 0;
   const highInt = S.debts.filter(d=>d.rate>=20 && d.balance>0);
   const needPct = t.income>0? t.ess/t.income*100:0;
   const wantPct = t.income>0? t.non/t.income*100:0;
   return topbar('ড্যাশবোর্ড','চলতি মাসের আর্থিক স্বাস্থ্য এক নজরে') +
+  (streak>0?`<div class="alert tip" style="margin-bottom:12px"><span class="ai">🔥</span><div><b>${streak} দিনের স্ট্রিক!</b> প্রতিদিন হিসাব রাখছেন — চালিয়ে যান।</div></div>`:'')+
   `<div class="grid g-4" style="margin-bottom:16px">
     ${stat('চলতি মাসের আয়',bdt(t.income),'pos','মোট '+S.incomes.filter(x=>inThisMonth(x.date)).length+'টি এন্ট্রি',ICONS.income,'var(--brand)','var(--brand-bg)')}
     ${stat('চলতি মাসের ব্যয়',bdt(t.expense),'',`আবশ্যক ${essPct.toFixed(0)}%`,ICONS.expense,'var(--neg)','var(--neg-bg)')}
@@ -814,12 +852,75 @@ function viewDash(){
       <div class="alert ${top.level}" style="align-items:flex-start;margin-top:12px;margin-bottom:0"><span class="ai">${coachIcon(top.level)}</span><div><div style="font-weight:600;margin-bottom:3px">${top.title}</div><div style="font-size:13px;line-height:1.55">${top.body}</div></div></div></div>`;})()}
   </div>
 
+  ${(function(){
+    // Top 3 expense categories this month
+    const mExp=S.expenses.filter(x=>inThisMonth(x.date));
+    if(!mExp.length) return '';
+    const bycat={};
+    mExp.forEach(x=>{ bycat[x.category]=(bycat[x.category]||0)+x.amount; });
+    const top3=Object.entries(bycat).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    const maxAmt=top3[0]?.[1]||1;
+    const colors=['var(--neg)','var(--warn)','var(--blue)'];
+    return `<div class="card pad-lg" style="margin-top:16px">
+      <h3 style="margin-bottom:14px">🔥 এই মাসে শীর্ষ ৩ খরচের খাত</h3>
+      ${top3.map(([cat,amt],i)=>`<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px">
+          <span style="font-weight:600">${i+1}. ${esc(cat)}</span>
+          <span class="num" style="color:${colors[i]};font-weight:700">${bdt(amt)}</span>
+        </div>
+        <div style="background:var(--line);border-radius:4px;height:8px">
+          <div style="width:${(amt/maxAmt*100).toFixed(1)}%;background:${colors[i]};height:8px;border-radius:4px;transition:width .4s"></div>
+        </div>
+      </div>`).join('')}
+      <div class="hint" style="margin-top:8px">চলতি মাসের মোট ব্যয় ${bdt(t.expense)}-এর মধ্যে এই ৩টি খাতে ${bdt(sum(top3,x=>x[1]))} (${t.expense>0?(sum(top3,x=>x[1])/t.expense*100).toFixed(0):0}%) খরচ হয়েছে।</div>
+    </div>`;
+  })()}
+
+  ${(function(){
+    // Net Worth history chart
+    const hist=S.netWorthHistory||[];
+    if(!hist.length) return `<div class="card pad-lg" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div><h3 style="margin:0">📈 নিট সম্পদের ইতিহাস</h3><p style="font-size:13px;color:var(--ink-3);margin:4px 0 0">প্রতি মাসে স্ন্যাপশট নিলে আপনার সম্পদ বৃদ্ধির গ্রাফ দেখতে পাবেন।</p></div>
+        <button class="btn" id="nw-snapshot">এই মাসের স্ন্যাপশট নিন</button>
+      </div>
+    </div>`;
+    const max=Math.max(...hist.map(h=>Math.abs(h.nw)),1);
+    const w=300; const barW=Math.max(16,Math.floor((w-hist.length*4)/hist.length));
+    const H=80;
+    const bars=hist.slice(-12).map((h,i)=>{
+      const pct=Math.abs(h.nw)/max; const bh=Math.max(4,pct*H);
+      const color=h.nw>=0?'var(--brand)':'var(--neg)';
+      return `<g><rect x="${i*(barW+4)}" y="${H-bh}" width="${barW}" height="${bh}" rx="3" fill="${color}" opacity=".85"/>
+        <text x="${i*(barW+4)+barW/2}" y="${H+14}" text-anchor="middle" font-size="9" fill="var(--ink-3)">${h.month.slice(5)}</text>
+      </g>`;
+    });
+    return `<div class="card pad-lg" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+        <h3 style="margin:0">📈 নিট সম্পদের ইতিহাস</h3>
+        <button class="btn-sm" id="nw-snapshot">+ এই মাস যোগ করুন</button>
+      </div>
+      <svg width="100%" viewBox="0 0 ${Math.max(300,(hist.length*(barW+4)))} ${H+20}" style="overflow:visible">
+        <line x1="0" y1="${H}" x2="100%" y2="${H}" stroke="var(--line)" stroke-width="1"/>
+        ${bars.join('')}
+      </svg>
+      <div class="hint" style="margin-top:4px">সর্বশেষ: ${bdt(hist[hist.length-1].nw)} (${hist[hist.length-1].month}) · মোট ${hist.length}টি স্ন্যাপশট</div>
+    </div>`;
+  })()}
+
   <div class="card" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
     <div><h3 style="margin:0">অ্যাপের চেহারা (থিম)</h3><p style="font-size:13px;color:var(--ink-3)">চোখের আরাম অনুযায়ী বেছে নিন। "অটো" দিলে রাতে ডিভাইস অনুযায়ী নিজে থেকে ডার্ক হবে।</p></div>
-    <div class="pillset" style="margin:0">
-      <button data-theme-opt="light" class="${SET.theme==='light'?'on':''}">☀ লাইট</button>
-      <button data-theme-opt="dark" class="${SET.theme==='dark'?'on':''}">☾ ডার্ক</button>
-      <button data-theme-opt="auto" class="${SET.theme==='auto'?'on':''}">অটো</button>
+    <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">
+      <div class="pillset" style="margin:0">
+        <button data-theme-opt="light" class="${SET.theme==='light'?'on':''}">☀ লাইট</button>
+        <button data-theme-opt="dark" class="${SET.theme==='dark'?'on':''}">☾ ডার্ক</button>
+        <button data-theme-opt="auto" class="${SET.theme==='auto'?'on':''}">অটো</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:13px;color:var(--ink-3)">অ্যাকসেন্ট রঙ:</span>
+        ${[['#0b6e4f','সবুজ'],['#1a6bb5','নীল'],['#7c3aed','বেগুনি'],['#c2410c','কমলা'],['#be123c','লাল'],['#0e7490','টিল']].map(([c,n])=>`
+          <button data-accent="${c}" title="${n}" style="width:26px;height:26px;border-radius:50%;background:${c};border:3px solid ${SET.accentColor===c?'var(--ink)':'transparent'};cursor:pointer;padding:0;transition:border .15s"></button>`).join('')}
+      </div>
     </div>
   </div>
   <div class="card" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
@@ -1893,6 +1994,50 @@ function bindView(){
     inp.onblur=()=>{ const v=evalAmount(inp.value); if(isFinite(v)&&v>=0) inp.value=v||''; };
   });
 
+  // Recurring
+  on('rc-add','onclick',async()=>{
+    const type=val('rc-type'), cat=val('rc-cat').trim(), amt=numv('rc-amt'), freq=val('rc-freq'), day=parseInt(val('rc-day'))||1, acc=val('rc-acc'), note=val('rc-note');
+    if(!cat) return flash('rc-cat'); if(amt<=0) return flash('rc-amt');
+    addAndSave('recurring',{id:id(),type,cat,amount:amt,freq,day,account:acc,note});
+  });
+  document.querySelectorAll('[id^="rc-apply-"]').forEach(btn=>{
+    btn.onclick=async()=>{
+      const rid=btn.id.replace('rc-apply-',''); const r=S.recurring.find(x=>x.id===rid); if(!r) return;
+      const note=r.note||r.cat;
+      if(r.type==='income'){
+        const entry={id:id(),source:r.cat,amount:r.amount,date:today(),account:r.account,note};
+        S.incomes.push(entry); addMovement({id:id(),date:today(),account:r.account,amount:r.amount,dir:'in',kind:'income',ref:entry.id,note:r.cat});
+      } else {
+        const entry={id:id(),category:r.cat,amount:r.amount,priority:'essential',essential:true,date:today(),account:r.account,note};
+        S.expenses.push(entry); addMovement({id:id(),date:today(),account:r.account,amount:r.amount,dir:'out',kind:'expense',ref:entry.id,note:r.cat});
+      }
+      await save(); render(); alert(`"${r.cat}" ${r.type==='income'?'আয়':'ব্যয়'}ে যোগ হয়েছে ✓`);
+    };
+  });
+  // Bills
+  on('bl-add','onclick',async()=>{
+    const name=val('bl-name').trim(), amt=numv('bl-amt'), day=parseInt(val('bl-day'))||1, acc=val('bl-acc');
+    if(!name) return flash('bl-name'); if(amt<=0) return flash('bl-amt');
+    addAndSave('bills',{id:id(),name,amount:amt,day,account:acc,paidMonths:[]});
+  });
+  document.querySelectorAll('[data-bill-pay]').forEach(btn=>{
+    btn.onclick=async()=>{
+      const bid=btn.dataset.billPay; const b=S.bills.find(x=>x.id===bid); if(!b) return;
+      const key=today().slice(0,7)+'-'+b.id; if(!b.paidMonths) b.paidMonths=[];
+      if(!b.paidMonths.includes(key)) b.paidMonths.push(key);
+      // Add expense entry
+      const entry={id:id(),category:b.name,amount:b.amount,priority:'essential',essential:true,date:today(),account:b.account,note:b.name+' বিল পরিশোধ'};
+      S.expenses.push(entry); addMovement({id:id(),date:today(),account:b.account,amount:b.amount,dir:'out',kind:'expense',ref:entry.id,note:b.name});
+      await save(); render();
+    };
+  });
+  document.querySelectorAll('[data-bill-unpay]').forEach(btn=>{
+    btn.onclick=async()=>{
+      const bid=btn.dataset.billUnpay; const b=S.bills.find(x=>x.id===bid); if(!b) return;
+      const key=today().slice(0,7)+'-'+b.id; b.paidMonths=(b.paidMonths||[]).filter(k=>k!==key);
+      await save(); render();
+    };
+  });
   on('g-add','onclick',()=>{
     const n=resolveCat('g-name','goal'),tg=numv('g-target'),sv=numv('g-saved'),mo=numv('g-monthly');
     if(!n) return flash('g-name'); if(tg<=0) return flash('g-target');
@@ -1984,6 +2129,48 @@ function bindView(){
   });
   on('theme-btn','onclick',async()=>{ SET.theme = effectiveDark()?'light':'dark'; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
+  document.querySelectorAll('[data-accent]').forEach(b=>b.onclick=async()=>{ SET.accentColor=b.dataset.accent; applyTheme(); await saveSettings(); render(); });
+  // Challenge
+  on('ch-add','onclick',async()=>{
+    const cat=resolveCat('ch-cat','expense'), limit=numv('ch-limit');
+    if(!cat) return flash('ch-cat'); if(limit<=0) return flash('ch-limit');
+    const thisM=today().slice(0,7);
+    if((S.challenges||[]).find(c=>c.month===thisM&&c.category===cat)) return alert('এই মাসে এই খাতে ইতিমধ্যে একটি চ্যালেঞ্জ আছে।');
+    addAndSave('challenges',{id:id(),category:cat,limit,month:thisM});
+  });
+  // Profile switch
+  document.querySelectorAll('[data-switch-profile]').forEach(btn=>{
+    btn.onclick=async()=>{
+      SET.activeProfile=btn.dataset.switchProfile;
+      await saveSettings(); await load(); render();
+      alert((SET.profiles.find(p=>p.id===SET.activeProfile)?.name||'প্রোফাইল')+'-এ সুইচ করা হয়েছে।');
+    };
+  });
+  document.querySelectorAll('[data-del-profile]').forEach(btn=>{
+    btn.onclick=async()=>{
+      if(!confirm('এই প্রোফাইল মুছে ফেলবেন? সব ডেটা মুছে যাবে।')) return;
+      const pid=btn.dataset.delProfile;
+      SET.profiles=SET.profiles.filter(p=>p.id!==pid);
+      await Store.set('finmate_v1_'+pid, null);
+      await saveSettings(); render();
+    };
+  });
+  on('pf-add','onclick',async()=>{
+    const name=val('pf-name').trim(); if(!name) return flash('pf-name');
+    const pid='p'+id();
+    if(!SET.profiles) SET.profiles=[];
+    SET.profiles.push({id:pid,name});
+    await saveSettings(); render();
+  });
+  on('nw-snapshot','onclick',async()=>{
+    const month=today().slice(0,7);
+    const nw=totals().netWorth;
+    if(!S.netWorthHistory) S.netWorthHistory=[];
+    const existing=S.netWorthHistory.findIndex(h=>h.month===month);
+    if(existing>=0){ S.netWorthHistory[existing].nw=nw; } else { S.netWorthHistory.push({month,nw}); }
+    S.netWorthHistory.sort((a,b)=>a.month.localeCompare(b.month));
+    await save(); render(); alert(`${month} মাসের নিট সম্পদ ${bdt(nw)} সংরক্ষিত হয়েছে ✓`);
+  });
   on('hide-btn','onclick',async()=>{
     if(SET.hideBalance){ // currently hidden → reveal requires PIN
       if(SET.pinHash){ revealWhat='balance'; showLock('reveal'); }
@@ -2264,6 +2451,303 @@ function viewGuide(){
   </div>`;
 }
 
+/* =========================================================
+   Recurring Transactions — নিয়মিত লেনদেন
+   ========================================================= */
+function viewRecurring(){
+  const list=S.recurring||[];
+  const FREQ={daily:'প্রতিদিন',weekly:'সাপ্তাহিক',monthly:'মাসিক',yearly:'বার্ষিক'};
+  return topbar('নিয়মিত লেনদেন','প্রতি মাসে/সপ্তাহে স্বয়ংক্রিয়ভাবে যোগ হওয়া আয়-ব্যয় সেট করুন') +
+  `<div class="card pad-lg" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">নতুন নিয়মিত লেনদেন যোগ করুন</h3>
+    <div class="form-row">
+      <div class="field sm"><label>ধরন</label><select id="rc-type"><option value="income">আয়</option><option value="expense">ব্যয়</option></select></div>
+      <div class="field"><label>খাত / উৎস</label><input id="rc-cat" placeholder="যেমন: মূল বেতন, বাসা ভাড়া"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="rc-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+      <div class="field sm"><label>পুনরাবৃত্তি</label><select id="rc-freq"><option value="monthly">মাসিক</option><option value="weekly">সাপ্তাহিক</option><option value="yearly">বার্ষিক</option><option value="daily">প্রতিদিন</option></select></div>
+      <div class="field sm"><label>মাসের দিন</label><input id="rc-day" type="number" min="1" max="31" placeholder="১–৩১" value="1"></div>
+      <div class="field sm"><label>অ্যাকাউন্ট</label>${accSelect('rc-acc')}</div>
+      <div class="field"><label>মন্তব্য</label><input id="rc-note" placeholder="ঐচ্ছিক"></div>
+      <button class="btn" id="rc-add">যোগ করুন</button>
+    </div>
+  </div>
+  <div class="card pad-lg">
+    <h3 style="margin-bottom:14px">সক্রিয় নিয়মিত লেনদেন</h3>
+    ${list.length?`<table><thead><tr><th>ধরন</th><th>খাত</th><th class="r">পরিমাণ</th><th>পুনরাবৃত্তি</th><th>দিন</th><th>অ্যাকাউন্ট</th><th></th></tr></thead><tbody>
+    ${list.map(r=>`<tr>
+      <td><span class="tag ${r.type==='income'?'ess':'non'}">${r.type==='income'?'আয়':'ব্যয়'}</span></td>
+      <td>${esc(r.cat)}${r.note?`<div class="rownote">${esc(r.note)}</div>`:''}</td>
+      <td class="r num ${r.type==='income'?'pos':''}">${bdt(r.amount)}</td>
+      <td>${FREQ[r.freq]||r.freq}</td>
+      <td class="num">${r.day} তারিখ</td>
+      <td>${esc(accName(r.account))}</td>
+      <td class="r" style="display:flex;gap:4px;justify-content:flex-end">
+        <button class="btn-sm" id="rc-apply-${r.id}" title="এখনই যোগ করুন">▶ এখন</button>
+        <button class="del" data-del="recurring" data-id="${r.id}">✕</button>
+      </td>
+    </tr>`).join('')}
+    </tbody></table>`
+    :`<div class="empty">এখনও কোনো নিয়মিত লেনদেন সেট করা হয়নি।<br><small>বেতন, বাসা ভাড়ার মতো নিয়মিত আয়-ব্যয় একবার সেট করলে প্রতি মাসে মনে করিয়ে দেবে।</small></div>`}
+  </div>
+  <div class="alert tip" style="margin-top:16px"><span class="ai">i</span><div>প্রতি মাসের শুরুতে ড্যাশবোর্ডে নিয়মিত লেনদেনের রিমাইন্ডার দেখাবে। "▶ এখন" চাপলে আয়/ব্যয়ে সরাসরি যোগ হয়ে যাবে।</div></div>`;
+}
+
+/* =========================================================
+   Bill Tracker — বিল ট্র্যাকার
+   ========================================================= */
+function viewBills(){
+  const bills=S.bills||[];
+  const td=today();
+  const daysLeft=(due)=>{ const d=new Date(due)-new Date(td); return Math.ceil(d/(1000*60*60*24)); };
+  const thisM=td.slice(0,7);
+  return topbar('বিল ট্র্যাকার','মাসিক নির্দিষ্ট বিল ট্র্যাক করুন — পেইড/আনপেইড দেখুন') +
+  `<div class="card pad-lg" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">নতুন বিল যোগ করুন</h3>
+    <div class="form-row">
+      <div class="field"><label>বিলের নাম</label><input id="bl-name" placeholder="যেমন: বিদ্যুৎ বিল, ইন্টারনেট"></div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="bl-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+      <div class="field sm"><label>প্রতি মাসের দিন</label><input id="bl-day" type="number" min="1" max="31" placeholder="যেমন: ১৫" value="1"></div>
+      <div class="field sm"><label>অ্যাকাউন্ট</label>${accSelect('bl-acc')}</div>
+      <button class="btn" id="bl-add">যোগ করুন</button>
+    </div>
+  </div>
+  <div class="card pad-lg">
+    <h3 style="margin-bottom:14px">এই মাসের বিলসমূহ</h3>
+    ${bills.length?`<div style="display:flex;flex-direction:column;gap:12px">
+    ${bills.map(b=>{
+      const paidKey=thisM+'-'+b.id;
+      const paid=(b.paidMonths||[]).includes(paidKey);
+      const dueDate=thisM+'-'+String(b.day).padStart(2,'0');
+      const dl=daysLeft(dueDate);
+      const urgent=!paid && dl<=3 && dl>=0;
+      const overdue=!paid && dl<0;
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;border:1px solid ${overdue?'var(--neg)':urgent?'var(--warn)':'var(--line)'};background:${overdue?'var(--neg-bg)':urgent?'var(--warn-bg)':'var(--surface)'}">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px">${esc(b.name)}</div>
+          <div style="font-size:12px;color:var(--ink-3);margin-top:2px">${bdt(b.amount)} · প্রতি মাসের ${b.day} তারিখ · ${esc(accName(b.account))}</div>
+          ${overdue?`<div style="font-size:12px;color:var(--neg);margin-top:3px">⚠️ মেয়াদ পেরিয়ে গেছে</div>`:urgent?`<div style="font-size:12px;color:var(--warn-d);margin-top:3px">⏰ ${dl} দিন বাকি</div>`:paid?`<div style="font-size:12px;color:var(--pos);margin-top:3px">✅ পরিশোধ করা হয়েছে</div>`:`<div style="font-size:12px;color:var(--ink-3);margin-top:3px">${dl} দিন বাকি</div>`}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${paid
+            ?`<button class="btn-sm" data-bill-unpay="${b.id}">↩ পূর্বাবস্থা</button>`
+            :`<button class="btn-sm" data-bill-pay="${b.id}" style="background:var(--brand);color:#fff;border-color:var(--brand)">✓ পরিশোধ</button>`}
+          <button class="del" data-del="bills" data-id="${b.id}">✕</button>
+        </div>
+      </div>`;
+    }).join('')}
+    </div>`:`<div class="empty">এখনও কোনো বিল যোগ করা হয়নি।<br><small>বিদ্যুৎ, গ্যাস, ইন্টারনেট — মাসিক নির্দিষ্ট বিলগুলো এখানে যোগ করুন।</small></div>`}
+  </div>`;
+}
+
+/* =========================================================
+   Quick Add — দ্রুত এন্ট্রি
+   ========================================================= */
+let qaMode='inc';
+function qaTab(tab){
+  qaMode=tab;
+  const if1=document.getElementById('qa-inc-form'); if(if1) if1.style.display=tab==='inc'?'block':'none';
+  const ef1=document.getElementById('qa-exp-form'); if(ef1) ef1.style.display=tab==='exp'?'block':'none';
+  const ti=document.getElementById('qa-tab-inc'); if(ti) ti.className=tab==='inc'?'on':'';
+  const te=document.getElementById('qa-tab-exp'); if(te) te.className=tab==='exp'?'on':'';
+}
+function openQA(){
+  const m=document.getElementById('qa-modal'); if(!m) return;
+  const iSrc=document.getElementById('qa-i-src');
+  if(iSrc) iSrc.innerHTML=(S.categories.income||[]).map(c=>`<option value="${c}">${esc(c)}</option>`).join('');
+  const eCat=document.getElementById('qa-e-cat');
+  if(eCat) eCat.innerHTML=(S.categories.expense||[]).map(c=>`<option value="${c}">${esc(c)}</option>`).join('');
+  ['qa-i-acc','qa-e-acc'].forEach(sid=>{ const el=document.getElementById(sid); if(el) el.innerHTML=S.accounts.map((a,i)=>`<option value="${a.id}"${(sid==='qa-e-acc'&&a.id===cashAccId())||(sid==='qa-i-acc'&&i===0)?' selected':''}>${esc(a.name)}</option>`).join(''); });
+  ['qa-i-date','qa-e-date'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=today(); });
+  ['qa-i-amt','qa-e-amt','qa-i-note','qa-e-note'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  m.style.display='grid'; qaTab(qaMode);
+}
+function closeQA(){ const m=document.getElementById('qa-modal'); if(m) m.style.display='none'; }
+function initQA(){
+  const fab=document.getElementById('qa-fab'); if(fab) fab.onclick=openQA;
+  const modal=document.getElementById('qa-modal');
+  if(modal) modal.onclick=(e)=>{ if(e.target.id==='qa-modal') closeQA(); };
+  const saveBtn=document.getElementById('qa-save');
+  if(saveBtn) saveBtn.onclick=async()=>{
+    if(qaMode==='inc'){
+      const src=document.getElementById('qa-i-src')?.value, amt=evalAmount(document.getElementById('qa-i-amt')?.value||'');
+      const note=(document.getElementById('qa-i-note')?.value||'').trim();
+      const date=document.getElementById('qa-i-date')?.value||today();
+      const acc=document.getElementById('qa-i-acc')?.value||'';
+      if(!src) return alert('উৎস বেছে নিন।'); if(amt<=0) return alert('পরিমাণ লিখুন।'); if(!note) return alert('মন্তব্য লেখা আবশ্যিক।');
+      if(!Array.isArray(S.incomes)) S.incomes=[];
+      const entry={id:id(),source:src,amount:amt,date,account:acc,note};
+      S.incomes.push(entry);
+      addMovement({id:id(),date,account:acc,amount:amt,dir:'in',kind:'income',ref:entry.id,note:src});
+      await save(); render(); closeQA(); alert('আয় যোগ হয়েছে ✓');
+    } else {
+      const cat=document.getElementById('qa-e-cat')?.value, amt=evalAmount(document.getElementById('qa-e-amt')?.value||'');
+      const note=(document.getElementById('qa-e-note')?.value||'').trim();
+      const prio=document.getElementById('qa-e-ess')?.value||'essential';
+      const date=document.getElementById('qa-e-date')?.value||today();
+      const acc=document.getElementById('qa-e-acc')?.value||cashAccId();
+      if(!cat) return alert('খাত বেছে নিন।'); if(amt<=0) return alert('পরিমাণ লিখুন।'); if(!note) return alert('মন্তব্য লেখা আবশ্যিক।');
+      if(!Array.isArray(S.expenses)) S.expenses=[];
+      const entry={id:id(),category:cat,amount:amt,priority:prio,essential:prio==='essential',date,account:acc,note};
+      S.expenses.push(entry);
+      addMovement({id:id(),date,account:acc,amount:amt,dir:'out',kind:'expense',ref:entry.id,note:cat});
+      await save(); render(); closeQA(); alert('ব্যয় যোগ হয়েছে ✓');
+    }
+  };
+}
+
+/* =========================================================
+   Heatmap — খরচের হিটম্যাপ
+   ========================================================= */
+function viewHeatmap(){
+  const now=new Date(); const yr=now.getFullYear(); const mo=now.getMonth();
+  const daysInMonth=new Date(yr,mo+1,0).getDate();
+  const firstDay=new Date(yr,mo,1).getDay(); // 0=Sun
+  const monthStr=today().slice(0,7);
+  // aggregate daily expense
+  const daily={};
+  S.expenses.filter(x=>x.date&&x.date.startsWith(monthStr)).forEach(x=>{
+    daily[x.date]=(daily[x.date]||0)+x.amount;
+  });
+  const vals=Object.values(daily);
+  const maxAmt=vals.length?Math.max(...vals):1;
+  function heatColor(amt){
+    if(!amt) return 'var(--bg)';
+    const pct=amt/maxAmt;
+    if(pct<0.25) return '#bbf7d0';
+    if(pct<0.5)  return '#4ade80';
+    if(pct<0.75) return '#f97316';
+    return '#dc2626';
+  }
+  const dayNames=['রবি','সোম','মঙ্গল','বুধ','বৃহ','শুক্র','শনি'];
+  let cells='';
+  for(let i=0;i<firstDay;i++) cells+=`<div></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=`${monthStr}-${String(d).padStart(2,'0')}`;
+    const amt=daily[ds]||0;
+    cells+=`<div title="${d} তারিখ${amt?': '+bdt(amt):': কোনো খরচ নেই'}" style="aspect-ratio:1;border-radius:5px;background:${heatColor(amt)};display:flex;align-items:center;justify-content:center;font-size:10px;color:${amt?'#fff':'var(--ink-3)'};font-weight:600;cursor:default;border:1px solid var(--line)">${d}</div>`;
+  }
+  const totalDays=Object.keys(daily).length;
+  const zeroDays=daysInMonth-(new Date()<=new Date(yr,mo+1,0)?now.getDate():daysInMonth);
+  const spendDays=Object.keys(daily).filter(d=>new Date(d)<=now).length;
+  return topbar('খরচের হিটম্যাপ','এই মাসে কোন দিন কত খরচ হয়েছে দেখুন') +
+  `<div class="card pad-lg" style="margin-bottom:16px">
+    <h3 style="margin-bottom:16px">${new Date(yr,mo).toLocaleDateString('bn-BD',{month:'long',year:'numeric'})}</h3>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:10px">
+      ${dayNames.map(d=>`<div style="text-align:center;font-size:11px;color:var(--ink-3);font-weight:600">${d}</div>`).join('')}
+      ${cells}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--ink-3)">কম</span>
+      ${['#bbf7d0','#4ade80','#f97316','#dc2626'].map(c=>`<div style="width:20px;height:20px;border-radius:4px;background:${c}"></div>`).join('')}
+      <span style="font-size:12px;color:var(--ink-3)">বেশি</span>
+      <span style="flex:1"></span>
+      <span style="font-size:13px;color:var(--ink-3)">${spendDays} দিন খরচ · ${bdt(vals.reduce((a,b)=>a+b,0))} মোট</span>
+    </div>
+  </div>
+  <div class="card pad-lg">
+    <h3 style="margin-bottom:12px">দৈনিক বিশ্লেষণ</h3>
+    ${Object.entries(daily).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([ds,amt])=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)">
+      <span style="font-size:13.5px">${new Date(ds).toLocaleDateString('bn-BD',{weekday:'short',day:'numeric',month:'short'})}</span>
+      <span class="num neg" style="font-weight:600">${bdt(amt)}</span>
+    </div>`).join('')||`<div class="empty">এই মাসে এখনও কোনো খরচ নেই।</div>`}
+  </div>`;
+}
+
+/* =========================================================
+   Challenge — সঞ্চয় স্ট্রিক ও মাসিক চ্যালেঞ্জ
+   ========================================================= */
+function calcStreak(){
+  const dates=[...new Set([...S.expenses,...S.incomes].map(x=>x.date))].sort();
+  if(!dates.length) return 0;
+  let streak=0; const td=today();
+  let cur=new Date(td);
+  while(true){
+    const ds=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+    if(dates.includes(ds)){ streak++; cur.setDate(cur.getDate()-1); } else break;
+  }
+  return streak;
+}
+function viewChallenge(){
+  const streak=calcStreak();
+  const chal=S.challenges||[];
+  const thisM=today().slice(0,7);
+  const activeChal=chal.filter(c=>c.month===thisM);
+  const mExp=S.expenses.filter(x=>inThisMonth(x.date));
+  function evalChallenge(c){
+    const spent=sum(mExp.filter(x=>x.category===c.category),x=>x.amount);
+    const passed=spent<=c.limit;
+    return {spent,passed,pct:c.limit>0?Math.min(100,spent/c.limit*100):100};
+  }
+  return topbar('মাসিক চ্যালেঞ্জ','লক্ষ্য ঠিক করুন — মাস শেষে পাস/ফেল দেখুন') +
+  `<div class="card pad-lg" style="margin-bottom:16px;text-align:center">
+    <div style="font-size:48px;margin-bottom:8px">${streak>0?'🔥':'😴'}</div>
+    <div style="font-size:28px;font-weight:800;color:var(--brand)">${streak}</div>
+    <div style="font-size:14px;color:var(--ink-2);margin-top:4px">দিনের এন্ট্রি স্ট্রিক</div>
+    <div class="hint" style="margin-top:8px">${streak===0?'আজ কোনো এন্ট্রি নেই — ধারা শুরু করুন!':streak<7?'চালিয়ে যান! ৭ দিনের স্ট্রিকের দিকে এগিয়ে যাচ্ছেন।':'দারুণ! '+streak+' দিন ধরে নিয়মিত হিসাব রাখছেন।'}</div>
+  </div>
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">নতুন চ্যালেঞ্জ যোগ করুন</h3>
+    <div class="form-row">
+      <div class="field"><label>খরচের খাত</label>${catSelect('ch-cat','expense','খাত বেছে নিন')}</div>
+      <div class="field sm"><label>সর্বোচ্চ সীমা (৳)</label><input id="ch-limit" class="num calc" type="text" inputmode="text" placeholder="যেমন: ৩০০০"></div>
+      <button class="btn" id="ch-add">এই মাসের চ্যালেঞ্জ সেট করুন</button>
+    </div>
+    <div class="hint">এই মাসে নির্দিষ্ট খাতে সীমার মধ্যে থাকুন — মাস শেষে পাস/ফেল দেখুন।</div>
+  </div>
+  <div class="card pad-lg">
+    <h3 style="margin-bottom:14px">এই মাসের চ্যালেঞ্জ (${thisM})</h3>
+    ${activeChal.length?activeChal.map(c=>{const r=evalChallenge(c); return `
+    <div style="margin-bottom:16px;padding:12px;border-radius:10px;border:1px solid ${r.passed?'var(--pos)':'var(--neg)'};background:${r.passed?'var(--pos-bg)':'var(--neg-bg)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:600;font-size:14px">${esc(c.category)}</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:13px;color:var(--ink-2)">${bdt(r.spent)} / ${bdt(c.limit)}</span>
+          <span style="font-size:18px">${r.passed?'✅':'❌'}</span>
+          <button class="del" data-del="challenges" data-id="${c.id}">✕</button>
+        </div>
+      </div>
+      <div style="background:var(--line);border-radius:4px;height:8px">
+        <div style="width:${r.pct.toFixed(1)}%;background:${r.passed?'var(--pos)':'var(--neg)'};height:8px;border-radius:4px;transition:width .4s"></div>
+      </div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:6px">${r.passed?'সীমার মধ্যে আছেন — '+bdt(c.limit-r.spent)+' বাকি':'সীমা '+bdt(r.spent-c.limit)+' ছাড়িয়ে গেছে!'}</div>
+    </div>`}).join(''):`<div class="empty">এই মাসে কোনো চ্যালেঞ্জ নেই। উপরে একটা সেট করুন!</div>`}
+  </div>`;
+}
+
+/* =========================================================
+   Profiles — পরিবার মোড
+   ========================================================= */
+function viewProfiles(){
+  const profs=SET.profiles||[{id:'default',name:'আমার হিসাব'}];
+  const active=SET.activeProfile||'default';
+  return topbar('পরিবার মোড','একই ডিভাইসে একাধিক ব্যক্তির আলাদা হিসাব রাখুন') +
+  `<div class="card pad-lg" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">নতুন প্রোফাইল তৈরি করুন</h3>
+    <div class="form-row">
+      <div class="field"><label>প্রোফাইলের নাম</label><input id="pf-name" placeholder="যেমন: স্ত্রীর হিসাব, সংসারের হিসাব"></div>
+      <button class="btn" id="pf-add">তৈরি করুন</button>
+    </div>
+    <div class="hint">প্রতিটি প্রোফাইল সম্পূর্ণ আলাদা — আয়, ব্যয়, অ্যাকাউন্ট সব আলাদাভাবে জমা থাকবে।</div>
+  </div>
+  <div class="card pad-lg">
+    <h3 style="margin-bottom:14px">সব প্রোফাইল</h3>
+    ${profs.map(p=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;border:2px solid ${p.id===active?'var(--brand)':'var(--line)'};background:${p.id===active?'var(--brand-bg)':'var(--surface)'};margin-bottom:10px">
+      <div style="width:42px;height:42px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;font-weight:700">${esc(p.name[0]||'?')}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:14px">${esc(p.name)}</div>
+        <div style="font-size:12px;color:var(--ink-3)">${p.id===active?'✅ সক্রিয় প্রোফাইল':'নিষ্ক্রিয়'}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        ${p.id!==active?`<button class="btn" data-switch-profile="${p.id}">সুইচ করুন</button>`:''}
+        ${profs.length>1&&p.id!==active?`<button class="del" data-del-profile="${p.id}">✕</button>`:''}
+      </div>
+    </div>`).join('')}
+  </div>
+  <div class="alert tip" style="margin-top:16px"><span class="ai">i</span><div>প্রোফাইল সুইচ করলে সেই ব্যক্তির সব হিসাব আলাদাভাবে লোড হবে। প্রতিটি প্রোফাইলের জন্য আলাদা ব্যাকআপ নিন।</div></div>`;
+}
+
 /* ---------- boot ---------- */
 (async function(){
   await load(); await loadSettings();
@@ -2271,8 +2755,44 @@ function viewGuide(){
   try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(SET.theme==='auto'){ applyTheme(); render(); } }); }catch(e){}
   renderNav(); render();
   startReminderTimer();
+  initQA();
   showLock(SET.pinHash ? 'enter' : 'set');
 })();
 </script>
+
+<!-- Quick Add FAB -->
+<button id="qa-fab" title="দ্রুত এন্ট্রি">＋</button>
+<div id="qa-modal" class="modal" style="display:none">
+  <div class="modal-card">
+    <h3 style="margin-bottom:12px">⚡ দ্রুত এন্ট্রি</h3>
+    <div class="qa-tabs">
+      <button id="qa-tab-inc" class="on" onclick="qaTab('inc')">💰 আয়</button>
+      <button id="qa-tab-exp" onclick="qaTab('exp')">💸 ব্যয়</button>
+    </div>
+    <div id="qa-inc-form">
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="field"><label>উৎস</label><select id="qa-i-src"></select></div>
+        <div class="field sm"><label>পরিমাণ (৳)</label><input id="qa-i-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+        <div class="field sm"><label>অ্যাকাউন্ট</label><select id="qa-i-acc"></select></div>
+        <div class="field sm"><label>তারিখ</label><input id="qa-i-date" type="date"></div>
+        <div class="field"><label>মন্তব্য <span style="color:var(--neg)">*</span></label><input id="qa-i-note" placeholder="যেমন: জুন মাসের বেতন"></div>
+      </div>
+    </div>
+    <div id="qa-exp-form" style="display:none">
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="field"><label>খাত</label><select id="qa-e-cat"></select></div>
+        <div class="field sm"><label>পরিমাণ (৳)</label><input id="qa-e-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
+        <div class="field sm"><label>ধরন</label><select id="qa-e-ess"><option value="essential">আবশ্যক</option><option value="flexible">মাঝামাঝি</option><option value="optional">অনাবশ্যক</option></select></div>
+        <div class="field sm"><label>অ্যাকাউন্ট</label><select id="qa-e-acc"></select></div>
+        <div class="field sm"><label>তারিখ</label><input id="qa-e-date" type="date"></div>
+        <div class="field"><label>মন্তব্য <span style="color:var(--neg)">*</span></label><input id="qa-e-note" placeholder="যেমন: বাজার খরচ"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn" id="qa-save">সেভ করুন</button>
+      <button class="btn ghost" onclick="closeQA()">বাতিল</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
