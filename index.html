@@ -273,7 +273,7 @@
 
   /* row note + budget input */
   .rownote{font-size:11.5px;color:var(--ink-3);font-weight:400;margin-top:3px;line-height:1.4;max-width:340px}
-  .binput{width:100%;text-align:right;padding:7px 10px}
+  .binput{width:100%;text-align:right;padding:9px 12px;font-size:15px;font-weight:600}
   .binput::-webkit-outer-spin-button,.binput::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .binput[type=number]{-moz-appearance:textfield}
 
@@ -999,7 +999,7 @@ function viewIncome(){
       <div class="field sm"><label>পরিমাণ (৳)</label><input id="i-amt" class="num calc" type="text" inputmode="text" placeholder="0" value="${ed?ed.amount:''}"></div>
       <div class="field sm"><label>যে অ্যাকাউন্টে</label>${accSelect('i-acc',ed?ed.account:undefined)}</div>
       <div class="field sm"><label>তারিখ</label><input id="i-date" type="date" value="${ed?ed.date:today()}"></div>
-      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="i-note" placeholder="যেমন: জুন মাসের বেতন" value="${ed?esc(ed.note||''):''}"></div>
+      <div class="field"><label>মন্তব্য <span style="color:var(--neg)">*</span></label><input id="i-note" placeholder="যেমন: জুন মাসের বেতন" value="${ed?esc(ed.note||''):''}"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" id="i-add">${ed?'আপডেট করুন':'যোগ করুন'}</button>
         ${ed?`<button class="btn ghost" id="i-edit-cancel">বাতিল</button>`:''}
@@ -1041,7 +1041,7 @@ function viewExpense(){
       </select></div>
       <div class="field sm"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('e-acc', ed?ed.account:cashAccId())}</div>
       <div class="field sm"><label>তারিখ</label><input id="e-date" type="date" value="${ed?ed.date:today()}"></div>
-      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="e-note" placeholder="যেমন: ঈদের কেনাকাটা" value="${ed?esc(ed.note||''):''}"></div>
+      <div class="field"><label>মন্তব্য <span style="color:var(--neg)">*</span></label><input id="e-note" placeholder="যেমন: ঈদের কেনাকাটা" value="${ed?esc(ed.note||''):''}"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" id="e-add">${ed?'আপডেট করুন':'যোগ করুন'}</button>
         ${ed?`<button class="btn ghost" id="e-edit-cancel">বাতিল</button>`:''}
@@ -1079,7 +1079,7 @@ function viewBudget(){
     const over = budget>0 && spent>budget;
     return `<tr>
       <td>${c}</td>
-      <td style="width:160px"><input class="num binput" type="number" value="${budget||''}" data-budget="${c}" placeholder="0"></td>
+      <td style="width:200px"><input class="num binput calc" type="text" inputmode="text" value="${budget||''}" data-budget="${c}" placeholder="০ লিখুন"></td>
       <td class="r num">${bdt(spent)}</td>
       <td style="width:160px"><div class="progress ${over?'gold':''}"><i style="width:${pct}%;${over?'background:var(--neg)':''}"></i></div></td>
       <td class="r num ${over?'neg':budget>0?'pos':''}">${budget>0?(over?'+':'')+bdt(spent-budget):'—'}</td>
@@ -1106,7 +1106,10 @@ function viewBudget(){
       <td></td>
       <td class="r num" style="font-weight:600;color:${totalSpent>totalBudget?'var(--neg)':'var(--pos)'}">${(totalSpent>totalBudget?'+':'')+bdt(totalSpent-totalBudget)}</td>
     </tr></tfoot></table>
-    <div class="hint">বাজেটের ঘরে সংখ্যা লিখলে সাথে সাথে সংরক্ষিত হয়। লাল = বাজেট অতিক্রম।</div>
+    <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <button class="btn" id="b-save-all">সব বাজেট সংরক্ষণ করুন</button>
+      <span class="hint" style="margin:0">বাজেটের ঘরে পরিমাণ লিখে "সংরক্ষণ" চাপুন। লাল = বাজেট অতিক্রম।</span>
+    </div>
   </div>`;
 }
 
@@ -1810,34 +1813,33 @@ function bindView(){
   const on=(sel,ev,fn)=>{const el=document.getElementById(sel); if(el) el[ev]=fn;};
 
   on('i-add','onclick',async()=>{
-    const src=resolveCat('i-src','income'), amt=numv('i-amt'), date=val('i-date')||today();
-    if(!src) return flash('i-src'); if(amt<=0) return flash('i-amt');
+    const src=resolveCat('i-src','income'), amt=numv('i-amt'), date=val('i-date')||today(), note=val('i-note');
+    if(!src) return flash('i-src'); if(amt<=0) return flash('i-amt'); if(!note.trim()){ flash('i-note'); return alert('মন্তব্য লেখা আবশ্যিক।'); }
     if(editingIncome){
       const x=S.incomes.find(i=>i.id===editingIncome); if(!x) return;
-      // reverse old movement, update, re-add movement
       const oldMov=S.movements.find(m=>m.ref===editingIncome&&m.kind==='income');
       if(oldMov){ removeMovement(oldMov); S.movements=S.movements.filter(m=>m.id!==oldMov.id); }
-      x.source=src; x.amount=amt; x.date=date; x.account=val('i-acc'); x.note=val('i-note');
+      x.source=src; x.amount=amt; x.date=date; x.account=val('i-acc'); x.note=note;
       addMovement({id:id(),date,account:x.account,amount:amt,dir:'in',kind:'income',ref:x.id,note:src});
       editingIncome=null; await save(); render();
     } else {
-      addAndSave('incomes',{id:id(),source:src,amount:amt,date,account:val('i-acc'),note:val('i-note')});
+      addAndSave('incomes',{id:id(),source:src,amount:amt,date,account:val('i-acc'),note});
     }
   });
   on('i-edit-cancel','onclick',()=>{ editingIncome=null; render(); });
 
   on('e-add','onclick',async()=>{
-    const cat=resolveCat('e-cat','expense'), amt=numv('e-amt'), prio=val('e-ess')||'essential', date=val('e-date')||today();
-    if(!cat) return flash('e-cat'); if(amt<=0) return flash('e-amt');
+    const cat=resolveCat('e-cat','expense'), amt=numv('e-amt'), prio=val('e-ess')||'essential', date=val('e-date')||today(), note=val('e-note');
+    if(!cat) return flash('e-cat'); if(amt<=0) return flash('e-amt'); if(!note.trim()){ flash('e-note'); return alert('মন্তব্য লেখা আবশ্যিক।'); }
     if(editingExpense){
       const x=S.expenses.find(e=>e.id===editingExpense); if(!x) return;
       const oldMov=S.movements.find(m=>m.ref===editingExpense&&m.kind==='expense');
       if(oldMov){ removeMovement(oldMov); S.movements=S.movements.filter(m=>m.id!==oldMov.id); }
-      x.category=cat; x.amount=amt; x.priority=prio; x.essential=prio==='essential'; x.date=date; x.account=val('e-acc'); x.note=val('e-note');
+      x.category=cat; x.amount=amt; x.priority=prio; x.essential=prio==='essential'; x.date=date; x.account=val('e-acc'); x.note=note;
       addMovement({id:id(),date,account:x.account,amount:amt,dir:'out',kind:'expense',ref:x.id,note:cat});
       editingExpense=null; await save(); render();
     } else {
-      addAndSave('expenses',{id:id(),category:cat,amount:amt,priority:prio,essential:prio==='essential',date,account:val('e-acc'),note:val('e-note')});
+      addAndSave('expenses',{id:id(),category:cat,amount:amt,priority:prio,essential:prio==='essential',date,account:val('e-acc'),note});
     }
   });
   on('e-edit-cancel','onclick',()=>{ editingExpense=null; render(); });
@@ -1880,9 +1882,15 @@ function bindView(){
     if(!cat) return flash('b-cat'); if(amt<=0) return flash('b-amt');
     S.budgets[cat]=amt; await save(); render();
   });
+  on('b-save-all','onclick',async()=>{
+    document.querySelectorAll('[data-budget]').forEach(inp=>{
+      const c=inp.dataset.budget; const v=evalAmount(inp.value);
+      if(v>0) S.budgets[c]=v; else delete S.budgets[c];
+    });
+    await save(); render(); alert('সব বাজেট সংরক্ষিত হয়েছে।');
+  });
   document.querySelectorAll('[data-budget]').forEach(inp=>{
-    inp.onchange=async()=>{const c=inp.dataset.budget;const v=parseFloat(inp.value)||0;
-      if(v>0)S.budgets[c]=v; else delete S.budgets[c]; await save(); if(current==='budget')render();};
+    inp.onblur=()=>{ const v=evalAmount(inp.value); if(isFinite(v)&&v>=0) inp.value=v||''; };
   });
 
   on('g-add','onclick',()=>{
