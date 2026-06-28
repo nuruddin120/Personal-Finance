@@ -706,11 +706,11 @@ function render(){
 }
 
 /* ---------- Reusable category dropdown (with "add new") ---------- */
-function catSelect(selId, listKey, placeholder){
+function catSelect(selId, listKey, placeholder, selected){
   const list = (S.categories[listKey]||[]);
   return `<select id="${selId}" class="catsel">
-      <option value="" selected disabled>${placeholder}</option>
-      ${list.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      <option value="" ${!selected?'selected':''} disabled>${placeholder}</option>
+      ${list.map(c=>`<option value="${c}"${c===selected?' selected':''}>${c}</option>`).join('')}
       <option value="__new__">+ নতুন যোগ করুন…</option>
     </select>
     <input id="${selId}-new" class="catnew" placeholder="নতুন নাম লিখে দিন" style="display:none;margin-top:8px">`;
@@ -985,26 +985,35 @@ function viewAccountDetail(){
 /* =========================================================
    Income
    ========================================================= */
+let editingIncome=null; // id of income being edited
 function viewIncome(){
   const rows=byDateDesc(S.incomes);
   const total=sum(S.incomes,x=>x.amount);
   const monthTotal=sum(S.incomes.filter(x=>inThisMonth(x.date)),x=>x.amount);
+  const ed=editingIncome?S.incomes.find(x=>x.id===editingIncome):null;
   return topbar('আয়','প্রতিটি আয়ের এন্ট্রি তারিখসহ যোগ করুন') +
   `<div class="card pad-lg" style="margin-bottom:16px">
+    <div style="font-weight:600;font-size:14px;margin-bottom:10px;color:${ed?'var(--warn-d)':'var(--ink)'}">${ed?'✏️ এন্ট্রি সম্পাদনা করুন':'নতুন আয় যোগ করুন'}</div>
     <div class="form-row">
-      <div class="field"><label>আয়ের উৎস</label>${catSelect('i-src','income','উৎস নির্বাচন করুন')}</div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="i-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
-      <div class="field sm"><label>যে অ্যাকাউন্টে</label>${accSelect('i-acc')}</div>
-      <div class="field sm"><label>তারিখ</label><input id="i-date" type="date" value="${today()}"></div>
-      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="i-note" placeholder="যেমন: জুন মাসের বেতন"></div>
-      <button class="btn" id="i-add">যোগ করুন</button>
+      <div class="field"><label>আয়ের উৎস</label>${catSelect('i-src','income','উৎস নির্বাচন করুন',ed?ed.source:undefined)}</div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="i-amt" class="num calc" type="text" inputmode="text" placeholder="0" value="${ed?ed.amount:''}"></div>
+      <div class="field sm"><label>যে অ্যাকাউন্টে</label>${accSelect('i-acc',ed?ed.account:undefined)}</div>
+      <div class="field sm"><label>তারিখ</label><input id="i-date" type="date" value="${ed?ed.date:today()}"></div>
+      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="i-note" placeholder="যেমন: জুন মাসের বেতন" value="${ed?esc(ed.note||''):''}"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="i-add">${ed?'আপডেট করুন':'যোগ করুন'}</button>
+        ${ed?`<button class="btn ghost" id="i-edit-cancel">বাতিল</button>`:''}
+      </div>
     </div>
     <table><thead><tr><th>তারিখ</th><th>উৎস</th><th class="r">পরিমাণ</th><th></th></tr></thead><tbody>
-    ${rows.length?rows.map(x=>`<tr>
+    ${rows.length?rows.map(x=>`<tr style="${x.id===editingIncome?'background:var(--warn-bg)':''}">
       <td class="num" style="color:var(--ink-3)">${fmtDate(x.date)}</td>
       <td>${esc(x.source)}${subLine(accName(x.account),x.note)}</td>
       <td class="r num pos">${bdt(x.amount)}</td>
-      <td class="r"><button class="del" data-del="incomes" data-id="${x.id}">✕</button></td>
+      <td class="r" style="display:flex;gap:4px;justify-content:flex-end">
+        <button class="btn-sm" data-edit-income="${x.id}">✏️</button>
+        <button class="del" data-del="incomes" data-id="${x.id}">✕</button>
+      </td>
     </tr>`).join(''):`<tr><td colspan="4"><div class="empty">এখনও কোনো আয় যোগ করা হয়নি।</div></td></tr>`}
     </tbody>
     <tfoot><tr><td colspan="2" style="color:var(--ink-3)">চলতি মাসের মোট</td><td class="r num" style="font-weight:600">${bdt(monthTotal)}</td><td></td></tr></tfoot></table>
@@ -1015,33 +1024,43 @@ function viewIncome(){
 /* =========================================================
    Expense
    ========================================================= */
-let expFilter='all';
+let expFilter='all'; let editingExpense=null;
 function viewExpense(){
   let list = byDateDesc(S.expenses);
   if(expFilter!=='all') list=list.filter(x=>expPrio(x)===expFilter);
   const monthTotal=sum(S.expenses.filter(x=>inThisMonth(x.date)),x=>x.amount);
+  const ed=editingExpense?S.expenses.find(x=>x.id===editingExpense):null;
   return topbar('ব্যয়','প্রতিটি খরচ তারিখসহ লিখুন; আবশ্যক / মাঝামাঝি / অনাবশ্যক চিহ্নিত করুন') +
   `<div class="card pad-lg" style="margin-bottom:16px">
+    <div style="font-weight:600;font-size:14px;margin-bottom:10px;color:${ed?'var(--warn-d)':'var(--ink)'}">${ed?'✏️ এন্ট্রি সম্পাদনা করুন':'নতুন খরচ যোগ করুন'}</div>
     <div class="form-row">
-      <div class="field"><label>খরচের খাত</label>${catSelect('e-cat','expense','খাত নির্বাচন করুন')}</div>
-      <div class="field sm"><label>পরিমাণ (৳)</label><input id="e-amt" class="num calc" type="text" inputmode="text" placeholder="0"></div>
-      <div class="field sm"><label>ধরন</label><select id="e-ess"><option value="essential">আবশ্যক</option><option value="flexible">মাঝামাঝি</option><option value="optional">অনাবশ্যক</option></select></div>
-      <div class="field sm"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('e-acc', cashAccId())}</div>
-      <div class="field sm"><label>তারিখ</label><input id="e-date" type="date" value="${today()}"></div>
-      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="e-note" placeholder="যেমন: ঈদের কেনাকাটা"></div>
-      <button class="btn" id="e-add">যোগ করুন</button>
+      <div class="field"><label>খরচের খাত</label>${catSelect('e-cat','expense','খাত নির্বাচন করুন',ed?ed.category:undefined)}</div>
+      <div class="field sm"><label>পরিমাণ (৳)</label><input id="e-amt" class="num calc" type="text" inputmode="text" placeholder="0" value="${ed?ed.amount:''}"></div>
+      <div class="field sm"><label>ধরন</label><select id="e-ess">
+        ${['essential|আবশ্যক','flexible|মাঝামাঝি','optional|অনাবশ্যক'].map(p=>{const[v,l]=p.split('|');return `<option value="${v}"${(ed?expPrio(ed):'')=== v?' selected':''}>${l}</option>`;}).join('')}
+      </select></div>
+      <div class="field sm"><label>যে অ্যাকাউন্ট থেকে</label>${accSelect('e-acc', ed?ed.account:cashAccId())}</div>
+      <div class="field sm"><label>তারিখ</label><input id="e-date" type="date" value="${ed?ed.date:today()}"></div>
+      <div class="field"><label>মন্তব্য (ঐচ্ছিক)</label><input id="e-note" placeholder="যেমন: ঈদের কেনাকাটা" value="${ed?esc(ed.note||''):''}"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="e-add">${ed?'আপডেট করুন':'যোগ করুন'}</button>
+        ${ed?`<button class="btn ghost" id="e-edit-cancel">বাতিল</button>`:''}
+      </div>
     </div>
     <div class="hint">আবশ্যক = না করলেই নয় (বাসা ভাড়া, খাবার); মাঝামাঝি = দরকারি তবে কমানো যায় (যাতায়াত, ইন্টারনেট); অনাবশ্যক = বিলাসিতা (রেস্টুরেন্ট, কেনাকাটা)।</div>
     <div class="pillset">
       ${['all|সব','essential|আবশ্যক','flexible|মাঝামাঝি','optional|অনাবশ্যক'].map(p=>{const[v,l]=p.split('|');return `<button class="${expFilter===v?'on':''}" data-f="${v}">${l}</button>`}).join('')}
     </div>
     <table><thead><tr><th>তারিখ</th><th>খাত</th><th>ধরন</th><th class="r">পরিমাণ</th><th></th></tr></thead><tbody>
-    ${list.length?list.map(x=>`<tr>
+    ${list.length?list.map(x=>`<tr style="${x.id===editingExpense?'background:var(--warn-bg)':''}">
       <td class="num" style="color:var(--ink-3)">${fmtDate(x.date)}</td>
       <td>${esc(x.category)}${subLine(accName(x.account),x.note)}</td>
       <td><span class="tag ${PRIO_CLASS[expPrio(x)]}">${PRIO[expPrio(x)]}</span></td>
       <td class="r num">${bdt(x.amount)}</td>
-      <td class="r"><button class="del" data-del="expenses" data-id="${x.id}">✕</button></td>
+      <td class="r" style="display:flex;gap:4px;justify-content:flex-end">
+        <button class="btn-sm" data-edit-expense="${x.id}">✏️</button>
+        <button class="del" data-del="expenses" data-id="${x.id}">✕</button>
+      </td>
     </tr>`).join(''):`<tr><td colspan="5"><div class="empty">এই ফিল্টারে কোনো খরচ নেই।</div></td></tr>`}
     </tbody>
     <tfoot><tr><td colspan="3" style="color:var(--ink-3)">চলতি মাসের মোট</td><td class="r num" style="font-weight:600">${bdt(monthTotal)}</td><td></td></tr></tfoot></table>
@@ -1790,15 +1809,45 @@ function bindView(){
 
   const on=(sel,ev,fn)=>{const el=document.getElementById(sel); if(el) el[ev]=fn;};
 
-  on('i-add','onclick',()=>{
+  on('i-add','onclick',async()=>{
     const src=resolveCat('i-src','income'), amt=numv('i-amt'), date=val('i-date')||today();
     if(!src) return flash('i-src'); if(amt<=0) return flash('i-amt');
-    addAndSave('incomes',{id:id(),source:src,amount:amt,date,account:val('i-acc'),note:val('i-note')});
+    if(editingIncome){
+      const x=S.incomes.find(i=>i.id===editingIncome); if(!x) return;
+      // reverse old movement, update, re-add movement
+      const oldMov=S.movements.find(m=>m.ref===editingIncome&&m.kind==='income');
+      if(oldMov){ removeMovement(oldMov); S.movements=S.movements.filter(m=>m.id!==oldMov.id); }
+      x.source=src; x.amount=amt; x.date=date; x.account=val('i-acc'); x.note=val('i-note');
+      addMovement({id:id(),date,account:x.account,amount:amt,dir:'in',kind:'income',ref:x.id,note:src});
+      editingIncome=null; await save(); render();
+    } else {
+      addAndSave('incomes',{id:id(),source:src,amount:amt,date,account:val('i-acc'),note:val('i-note')});
+    }
   });
-  on('e-add','onclick',()=>{
+  on('i-edit-cancel','onclick',()=>{ editingIncome=null; render(); });
+
+  on('e-add','onclick',async()=>{
     const cat=resolveCat('e-cat','expense'), amt=numv('e-amt'), prio=val('e-ess')||'essential', date=val('e-date')||today();
     if(!cat) return flash('e-cat'); if(amt<=0) return flash('e-amt');
-    addAndSave('expenses',{id:id(),category:cat,amount:amt,priority:prio,essential:prio==='essential',date,account:val('e-acc'),note:val('e-note')});
+    if(editingExpense){
+      const x=S.expenses.find(e=>e.id===editingExpense); if(!x) return;
+      const oldMov=S.movements.find(m=>m.ref===editingExpense&&m.kind==='expense');
+      if(oldMov){ removeMovement(oldMov); S.movements=S.movements.filter(m=>m.id!==oldMov.id); }
+      x.category=cat; x.amount=amt; x.priority=prio; x.essential=prio==='essential'; x.date=date; x.account=val('e-acc'); x.note=val('e-note');
+      addMovement({id:id(),date,account:x.account,amount:amt,dir:'out',kind:'expense',ref:x.id,note:cat});
+      editingExpense=null; await save(); render();
+    } else {
+      addAndSave('expenses',{id:id(),category:cat,amount:amt,priority:prio,essential:prio==='essential',date,account:val('e-acc'),note:val('e-note')});
+    }
+  });
+  on('e-edit-cancel','onclick',()=>{ editingExpense=null; render(); });
+
+  // Edit buttons (income/expense rows)
+  document.querySelectorAll('[data-edit-income]').forEach(b=>{
+    b.onclick=(e)=>{ e.stopPropagation(); editingIncome=b.dataset.editIncome; editingExpense=null; render(); window.scrollTo(0,0); };
+  });
+  document.querySelectorAll('[data-edit-expense]').forEach(b=>{
+    b.onclick=(e)=>{ e.stopPropagation(); editingExpense=b.dataset.editExpense; editingIncome=null; render(); window.scrollTo(0,0); };
   });
   // Accounts
   const _acType=document.getElementById('ac-type');
