@@ -331,7 +331,7 @@
   .modal-card h3{margin:0 0 6px;font-size:16px}
   .modal-card p{font-size:13.5px;color:var(--ink-2);line-height:1.6;margin-bottom:14px}
   /* Quick Add FAB */
-  #qa-fab{position:fixed;bottom:88px;right:20px;z-index:800;width:52px;height:52px;border-radius:50%;background:var(--brand);color:#fff;font-size:26px;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .15s}
+  #qa-fab{position:fixed;bottom:88px;right:20px;z-index:850;width:52px;height:52px;border-radius:50%;background:var(--brand);color:#fff;font-size:26px;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;transition:transform .15s}
   #qa-fab:active{transform:scale(.92)}
   #qa-modal .modal-card{max-width:420px}
   .qa-tabs{display:flex;gap:6px;margin-bottom:16px}
@@ -2211,6 +2211,8 @@ function bindView(){
   on('rmd-backup-x','onclick',async()=>{ SET.backupDismissedMonth=curMonthKey(); await saveSettings(); render(); });
   on('rmd-entry','onclick',()=>go('expense'));
   on('rmd-daily-x','onclick',async()=>{ SET.dailyDismissedDate=today(); await saveSettings(); render(); });
+  // Rewire FAB on every render (in case DOM was repainted)
+  initQA();
 }
 function val(idn){const e=document.getElementById(idn);return e?String(e.value).trim():'';}
 function bnToEn(s){ return String(s).replace(/[০-৯]/g,d=>'০১২৩৪৫৬৭৮৯'.indexOf(d)); }
@@ -2341,6 +2343,8 @@ function lockMsg(){
 }
 function showLock(mode){
   pinMode=mode||'enter'; pinEntry=''; pinTemp='';
+  // hide FAB while locked
+  const fab=document.getElementById('qa-fab'); if(fab) fab.style.display='none';
   let el=document.getElementById('lockscreen');
   if(!el){ el=document.createElement('div'); el.id='lockscreen'; el.className='lock'; document.body.appendChild(el); }
   const cancelable=(pinMode==='change'||pinMode==='reveal');
@@ -2364,7 +2368,12 @@ function showLock(mode){
   const fp=document.getElementById('forgot-pin'); if(fp) fp.onclick=forgotPin;
   const cp=document.getElementById('cancel-pin'); if(cp) cp.onclick=removeLock;
 }
-function removeLock(){ const el=document.getElementById('lockscreen'); if(el) el.remove(); document.body.classList.remove('locked'); pinEntry=''; pinTemp=''; }
+function removeLock(){
+  const el=document.getElementById('lockscreen'); if(el) el.remove();
+  document.body.classList.remove('locked'); pinEntry=''; pinTemp='';
+  // show FAB after unlock
+  const fab=document.getElementById('qa-fab'); if(fab) fab.style.display='flex';
+}
 function refreshDots(err){
   const d=document.getElementById('pin-dots'); if(d) d.outerHTML=pinDots();
   const m=document.getElementById('lock-msg'); if(m){ m.textContent=lockMsg(); m.classList.toggle('lock-err',!!err); }
