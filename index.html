@@ -664,20 +664,17 @@ const PAGES = [
   {id:'compare', label:'মাসিক তুলনা', short:'তুলনা', group:'overview'},
   {id:'reminders', label:'রিমাইন্ডার', short:'রিমাইন্ডার', group:'overview'},
   {id:'guide', label:'নির্দেশনা', short:'নির্দেশনা', group:'overview'},
-  {id:'recurring', label:'নিয়মিত লেনদেন', short:'নিয়মিত', group:'track'},
-  {id:'bills', label:'বিল ট্র্যাকার', short:'বিল', group:'track'},
+  {id:'challenge', label:'মাসিক চ্যালেঞ্জ', short:'চ্যালেঞ্জ', group:'overview'},
   {id:'accounts', label:'অ্যাকাউন্ট ও লেনদেন', short:'অ্যাকাউন্ট', group:'track'},
   {id:'income', label:'আয়', short:'আয়', group:'track'},
   {id:'expense', label:'ব্যয়', short:'ব্যয়', group:'track'},
   {id:'budget', label:'বাজেট', short:'বাজেট', group:'track'},
+  {id:'heatmap', label:'খরচের হিটম্যাপ', short:'হিটম্যাপ', group:'track'},
   {id:'goals', label:'সঞ্চয় ও লক্ষ্য', short:'লক্ষ্য', group:'grow'},
   {id:'invest', label:'বিনিয়োগ', short:'বিনিয়োগ', group:'grow'},
   {id:'emergency', label:'ইমারজেন্সি ফান্ড', short:'ইমারজেন্সি', group:'grow'},
   {id:'retire', label:'রিটায়ারমেন্ট', short:'রিটায়ার', group:'grow'},
   {id:'debt', label:'ঋণ ব্যবস্থাপনা', short:'ঋণ', group:'manage'},
-  {id:'heatmap', label:'খরচের হিটম্যাপ', short:'হিটম্যাপ', group:'track'},
-  {id:'challenge', label:'মাসিক চ্যালেঞ্জ', short:'চ্যালেঞ্জ', group:'overview'},
-  {id:'profiles', label:'পরিবার মোড', short:'প্রোফাইল', group:'manage'},
 ];
 const GROUPS = {overview:'',track:'রেকর্ড',grow:'গড়ে তুলুন',manage:'ব্যবস্থাপনা'};
 let current='dash';
@@ -2683,11 +2680,13 @@ function initQA(){
    Heatmap — খরচের হিটম্যাপ
    ========================================================= */
 function viewHeatmap(){
-  const now=new Date(); const yr=now.getFullYear(); const mo=now.getMonth();
+  // Use selectedMonth (global filter) for calendar display
+  const [yr, mo1] = selectedMonth.split('-').map(Number);
+  const mo = mo1 - 1; // 0-indexed
   const daysInMonth=new Date(yr,mo+1,0).getDate();
   const firstDay=new Date(yr,mo,1).getDay(); // 0=Sun
-  const monthStr=today().slice(0,7);
-  // aggregate daily expense
+  const monthStr=selectedMonth;
+  // aggregate daily expense for selected month
   const daily={};
   S.expenses.filter(x=>x.date&&x.date.startsWith(monthStr)).forEach(x=>{
     daily[x.date]=(daily[x.date]||0)+x.amount;
@@ -2710,10 +2709,8 @@ function viewHeatmap(){
     const amt=daily[ds]||0;
     cells+=`<div title="${d} তারিখ${amt?': '+bdt(amt):': কোনো খরচ নেই'}" style="aspect-ratio:1;border-radius:5px;background:${heatColor(amt)};display:flex;align-items:center;justify-content:center;font-size:10px;color:${amt?'#fff':'var(--ink-3)'};font-weight:600;cursor:default;border:1px solid var(--line)">${d}</div>`;
   }
-  const totalDays=Object.keys(daily).length;
-  const zeroDays=daysInMonth-(new Date()<=new Date(yr,mo+1,0)?now.getDate():daysInMonth);
-  const spendDays=Object.keys(daily).filter(d=>new Date(d)<=now).length;
-  return topbar('খরচের হিটম্যাপ','এই মাসে কোন দিন কত খরচ হয়েছে দেখুন') +
+  const spendDays=Object.keys(daily).length;
+  return topbar('খরচের হিটম্যাপ',`${monthLabel(selectedMonth)}-এ কোন দিন কত খরচ হয়েছে দেখুন`) +
   `<div class="card pad-lg" style="margin-bottom:16px">
     <h3 style="margin-bottom:16px">${new Date(yr,mo).toLocaleDateString('bn-BD',{month:'long',year:'numeric'})}</h3>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:10px">
