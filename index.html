@@ -80,6 +80,7 @@
   [data-theme="dark"] .rmd.warn{color:var(--warn)}
   [data-theme="dark"] .rmd.tip{color:var(--blue)}
   *{box-sizing:border-box;margin:0;padding:0}
+  html,body{overflow-x:hidden;max-width:100vw}
   html,body{height:100%}
   body{
     font-family:var(--body);
@@ -200,7 +201,8 @@
 
   /* ---------- Forms ---------- */
   .form-row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px}
-  .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:120px}
+  .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:140px}
+  .field.sm{min-width:110px}
   .field.sm{flex:0 0 130px}
   label{font-size:12px;color:var(--ink-3);letter-spacing:.1px;font-weight:500}
   input,select{
@@ -262,10 +264,26 @@
     .mobnav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
     .mobnav button{background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:8px 4px;border-radius:8px;font-family:var(--body);font-size:11.5px;line-height:1.25;cursor:pointer;font-weight:500;text-align:center;white-space:normal;min-height:38px}
     .mobnav button.active{border-color:var(--brand);color:var(--brand-d);background:var(--brand-bg);font-weight:600}
-    .main{padding:18px 15px 60px}
+    .main{padding:18px 12px 80px;overflow-x:hidden;max-width:100vw;width:100%}
     .g-4,.g-3,.g-2{grid-template-columns:1fr}
     .span-2{grid-column:auto}
     .health{flex-direction:column;align-items:stretch;text-align:center}
+    /* Table horizontal scroll on mobile */
+    .card{overflow-x:auto;max-width:100%}
+    table{min-width:unset;font-size:12px}
+    table td,table th{padding:7px 6px}
+    /* Form rows stack on mobile */
+    .form-row{flex-direction:column}
+    .field{min-width:unset;width:100%}
+    .field.sm{min-width:unset;width:100%}
+    /* Topbar wraps on mobile */
+    .topbar{flex-wrap:wrap;gap:8px}
+    .topbar-actions{flex-wrap:wrap;gap:6px}
+    .t-title h2{font-size:18px}
+    /* Stat cards smaller on mobile */
+    .statv{font-size:18px}
+    /* Grid cards no side overflow */
+    .grid{width:100%;overflow:hidden}
   }
   /* topbar actions + export button */
   .topbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -362,7 +380,7 @@
   </div>
   <div class="mobnav" id="mobnav"></div>
 
-  <main class="main" id="view"></main>
+  <main class="main" id="view" style="overflow-x:hidden;max-width:100%"></main>
 </div>
 
 <script>
