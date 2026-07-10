@@ -1999,7 +1999,7 @@ function bindView(){
     if(editingIncome){
       const x=S.incomes.find(i=>i.id===editingIncome); if(!x) return;
       const oldMov=S.movements.find(m=>m.ref===editingIncome&&m.kind==='income');
-      if(oldMov){ removeMovement(oldMov); S.movements=S.movements.filter(m=>m.id!==oldMov.id); }
+      if(oldMov){ removeMovement(oldMov.id); }
       x.source=src; x.amount=amt; x.date=date; x.account=val('i-acc'); x.note=note;
       addMovement({id:id(),date,account:x.account,amount:amt,dir:'in',kind:'income',ref:x.id,note:src});
       editingIncome=null; await save(); render();
@@ -2015,7 +2015,7 @@ function bindView(){
     if(editingExpense){
       const x=S.expenses.find(e=>e.id===editingExpense); if(!x) return;
       const oldMov=S.movements.find(m=>m.ref===editingExpense&&m.kind==='expense');
-      if(oldMov){ removeMovement(oldMov); S.movements=S.movements.filter(m=>m.id!==oldMov.id); }
+      if(oldMov){ removeMovement(oldMov.id); }
       x.category=cat; x.amount=amt; x.priority=prio; x.essential=prio==='essential'; x.date=date; x.account=val('e-acc'); x.note=note;
       addMovement({id:id(),date,account:x.account,amount:amt,dir:'out',kind:'expense',ref:x.id,note:cat});
       editingExpense=null; await save(); render();
@@ -2215,6 +2215,16 @@ function bindView(){
   on('theme-btn','onclick',async()=>{ SET.theme = effectiveDark()?'light':'dark'; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-accent]').forEach(b=>b.onclick=async()=>{ SET.accentColor=b.dataset.accent; applyTheme(); await saveSettings(); render(); });
+  // Heatmap day click
+  document.querySelectorAll('[data-hm-day]').forEach(el=>{
+    el.onclick=(e)=>{
+      e.stopPropagation();
+      const ds=el.dataset.hmDay;
+      hmSelectedDay=(hmSelectedDay===ds)?null:ds; // toggle
+      render(); window.scrollTo(0,200);
+    };
+  });
+  on('hm-day-close','onclick',()=>{ hmSelectedDay=null; render(); });
   // Challenge
   on('ch-add','onclick',async()=>{
     const cat=resolveCat('ch-cat','expense'), limit=numv('ch-limit');
@@ -2707,14 +2717,14 @@ function initQA(){
 /* =========================================================
    Heatmap — খরচের হিটম্যাপ
    ========================================================= */
+let hmSelectedDay=null; // selected date string e.g. '2026-07-08'
 function viewHeatmap(){
-  // Use selectedMonth (global filter) for calendar display
   const [yr, mo1] = selectedMonth.split('-').map(Number);
-  const mo = mo1 - 1; // 0-indexed
+  const mo = mo1 - 1;
   const daysInMonth=new Date(yr,mo+1,0).getDate();
-  const firstDay=new Date(yr,mo,1).getDay(); // 0=Sun
+  const firstDay=new Date(yr,mo,1).getDay();
   const monthStr=selectedMonth;
-  // aggregate daily expense for selected month
+  // aggregate daily expense
   const daily={};
   S.expenses.filter(x=>x.date&&x.date.startsWith(monthStr)).forEach(x=>{
     daily[x.date]=(daily[x.date]||0)+x.amount;
@@ -2735,9 +2745,59 @@ function viewHeatmap(){
   for(let d=1;d<=daysInMonth;d++){
     const ds=`${monthStr}-${String(d).padStart(2,'0')}`;
     const amt=daily[ds]||0;
-    cells+=`<div title="${d} তারিখ${amt?': '+bdt(amt):': কোনো খরচ নেই'}" style="aspect-ratio:1;border-radius:5px;background:${heatColor(amt)};display:flex;align-items:center;justify-content:center;font-size:10px;color:${amt?'#fff':'var(--ink-3)'};font-weight:600;cursor:default;border:1px solid var(--line)">${d}</div>`;
+    const isSelected=hmSelectedDay===ds;
+    const hasEntry=amt>0||S.incomes.some(x=>x.date===ds);
+    cells+=`<div data-hm-day="${ds}" style="aspect-ratio:1;border-radius:5px;background:${heatColor(amt)};display:flex;align-items:center;justify-content:center;font-size:10px;color:${amt?'#fff':'var(--ink-3)'};font-weight:600;cursor:pointer;border:2px solid ${isSelected?'var(--brand)':'var(--line)'};box-shadow:${isSelected?'0 0 0 2px var(--brand-bg)':'none'};transition:border .15s;position:relative">${d}${hasEntry&&!amt?`<span style="position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:var(--pos)"></span>`:''}
+    </div>`;
   }
   const spendDays=Object.keys(daily).length;
+  // Day summary section
+  let daySummary='';
+  if(hmSelectedDay){
+    const dayInc=S.incomes.filter(x=>x.date===hmSelectedDay);
+    const dayExp=S.expenses.filter(x=>x.date===hmSelectedDay);
+    const dayIncTotal=sum(dayInc,x=>x.amount);
+    const dayExpTotal=sum(dayExp,x=>x.amount);
+    const dayLabel=new Date(hmSelectedDay+'T00:00:00').toLocaleDateString('bn-BD',{weekday:'long',day:'numeric',month:'long'});
+    daySummary=`<div class="card pad-lg" style="margin-bottom:16px;border:2px solid var(--brand)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0;color:var(--brand)">${dayLabel}</h3>
+        <button class="btn-sm" id="hm-day-close">✕ বন্ধ করুন</button>
+      </div>
+      ${dayInc.length===0&&dayExp.length===0?`<div class="empty">এই দিনে কোনো এন্ট্রি নেই।</div>`:`
+      <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap">
+        ${dayInc.length?`<div style="flex:1;min-width:120px;padding:10px;border-radius:8px;background:var(--pos-bg);text-align:center">
+          <div style="font-size:12px;color:var(--pos);font-weight:600;margin-bottom:4px">মোট আয়</div>
+          <div class="num" style="font-size:18px;font-weight:700;color:var(--pos)">${bdt(dayIncTotal)}</div>
+        </div>`:''}
+        ${dayExp.length?`<div style="flex:1;min-width:120px;padding:10px;border-radius:8px;background:var(--neg-bg);text-align:center">
+          <div style="font-size:12px;color:var(--neg);font-weight:600;margin-bottom:4px">মোট খরচ</div>
+          <div class="num" style="font-size:18px;font-weight:700;color:var(--neg)">${bdt(dayExpTotal)}</div>
+        </div>`:''}
+      </div>
+      ${dayInc.length?`<div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--pos);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">আয়</div>
+        ${dayInc.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
+          <div>
+            <div style="font-weight:600;font-size:13.5px">${esc(x.source)}</div>
+            <div style="font-size:12px;color:var(--ink-3)">${esc(accName(x.account))}${x.note?` · ${esc(x.note)}`:''}</div>
+          </div>
+          <span class="num pos" style="font-weight:700">${bdt(x.amount)}</span>
+        </div>`).join('')}
+      </div>`:''}
+      ${dayExp.length?`<div>
+        <div style="font-size:12px;font-weight:700;color:var(--neg);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">খরচ</div>
+        ${dayExp.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
+          <div>
+            <div style="font-weight:600;font-size:13.5px">${esc(x.category)}</div>
+            <div style="font-size:12px;color:var(--ink-3)">${esc(accName(x.account))}${x.note?` · ${esc(x.note)}`:''}<span class="tag ${PRIO_CLASS[expPrio(x)]}" style="margin-left:6px">${PRIO[expPrio(x)]}</span></div>
+          </div>
+          <span class="num neg" style="font-weight:700">${bdt(x.amount)}</span>
+        </div>`).join('')}
+      </div>`:''}
+      `}
+    </div>`;
+  }
   return topbar('খরচের হিটম্যাপ',`${monthLabel(selectedMonth)}-এ কোন দিন কত খরচ হয়েছে দেখুন`) +
   `<div class="card pad-lg" style="margin-bottom:16px">
     <h3 style="margin-bottom:16px">${new Date(yr,mo).toLocaleDateString('bn-BD',{month:'long',year:'numeric'})}</h3>
@@ -2747,17 +2807,19 @@ function viewHeatmap(){
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">
       <span style="font-size:12px;color:var(--ink-3)">কম</span>
-      ${['#bbf7d0','#4ade80','#f97316','#dc2626'].map(c=>`<div style="width:20px;height:20px;border-radius:4px;background:${c}"></div>`).join('')}
+      ${['#bbf7d0','#4ade80','#f97316','#dc2626'].map(c=>`<div style="width:18px;height:18px;border-radius:4px;background:${c}"></div>`).join('')}
       <span style="font-size:12px;color:var(--ink-3)">বেশি</span>
       <span style="flex:1"></span>
-      <span style="font-size:13px;color:var(--ink-3)">${spendDays} দিন খরচ · ${bdt(vals.reduce((a,b)=>a+b,0))} মোট</span>
+      <span style="font-size:12px;color:var(--ink-3)">${spendDays} দিন · ${bdt(vals.reduce((a,b)=>a+b,0))}</span>
     </div>
+    <div class="hint" style="margin-top:8px">তারিখে চাপলে সেই দিনের বিস্তারিত এন্ট্রি দেখতে পাবেন।</div>
   </div>
+  ${daySummary}
   <div class="card pad-lg">
-    <h3 style="margin-bottom:12px">দৈনিক বিশ্লেষণ</h3>
+    <h3 style="margin-bottom:12px">দৈনিক বিশ্লেষণ (শীর্ষ ১০)</h3>
     ${Object.entries(daily).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([ds,amt])=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)">
-      <span style="font-size:13.5px">${new Date(ds).toLocaleDateString('bn-BD',{weekday:'short',day:'numeric',month:'short'})}</span>
+    <div data-hm-day="${ds}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;${hmSelectedDay===ds?'background:var(--brand-bg);margin:0 -4px;padding:8px 4px;border-radius:6px':''}">
+      <span style="font-size:13.5px">${new Date(ds+'T00:00:00').toLocaleDateString('bn-BD',{weekday:'short',day:'numeric',month:'short'})}</span>
       <span class="num neg" style="font-weight:600">${bdt(amt)}</span>
     </div>`).join('')||`<div class="empty">এই মাসে এখনও কোনো খরচ নেই।</div>`}
   </div>`;
