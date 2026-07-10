@@ -293,7 +293,7 @@
 
   /* row note + budget input */
   .rownote{font-size:11.5px;color:var(--ink-3);font-weight:400;margin-top:3px;line-height:1.4;max-width:340px}
-  .binput{width:100%;text-align:right;padding:9px 12px;font-size:15px;font-weight:600}
+  .binput{width:100%;text-align:right;padding:7px 10px;font-size:13.5px;font-weight:600}
   .binput::-webkit-outer-spin-button,.binput::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .binput[type=number]{-moz-appearance:textfield}
 
@@ -1220,7 +1220,7 @@ function viewBudget(){
     const over = budget>0 && spent>budget;
     return `<tr>
       <td>${c}</td>
-      <td style="width:200px"><input class="num binput calc" type="text" inputmode="text" value="${budget||''}" data-budget="${c}" placeholder="০ লিখুন"></td>
+      <td style="width:140px"><input class="num binput calc" type="text" inputmode="text" value="${budget||''}" data-budget="${c}" placeholder="০ লিখুন"></td>
       <td class="r num">${bdt(spent)}</td>
       <td style="width:160px"><div class="progress ${over?'gold':''}"><i style="width:${pct}%;${over?'background:var(--neg)':''}"></i></div></td>
       <td class="r num ${over?'neg':budget>0?'pos':''}">${budget>0?(over?'+':'')+bdt(spent-budget):'—'}</td>
