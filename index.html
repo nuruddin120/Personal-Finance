@@ -273,8 +273,10 @@
     table{min-width:unset;font-size:12px}
     table td,table th{padding:7px 6px}
     /* Form rows stack on mobile */
-    .form-row{flex-direction:column}
-    .field{min-width:unset;width:100%}
+    .form-row{flex-direction:column;gap:1px}
+    .field{min-width:unset;width:100%;gap:1px;margin-bottom:6px}
+    .field label{font-size:11.5px;margin-bottom:0;color:var(--ink-3)}
+    input,select{padding:6px 9px;font-size:13px}
     .field.sm{min-width:unset;width:100%}
     /* Topbar wraps on mobile */
     .topbar{flex-wrap:wrap;gap:8px}
@@ -354,8 +356,9 @@
   #qa-fab{position:fixed;bottom:88px;right:20px;z-index:850;width:52px;height:52px;border-radius:50%;background:var(--brand);color:#fff;font-size:26px;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;transition:transform .15s}
   #qa-fab:active{transform:scale(.92)}
   #qa-modal .modal-card{max-width:480px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column}
-  #qa-modal .modal-card .form-row{flex-direction:column;gap:12px}
-  #qa-modal .modal-card .field,#qa-modal .modal-card .field.sm{min-width:unset;width:100%}
+  #qa-modal .modal-card .form-row{flex-direction:column;gap:1px}
+  #qa-modal .modal-card .field,#qa-modal .modal-card .field.sm{min-width:unset;width:100%;gap:1px;margin-bottom:6px}
+  #qa-modal .modal-card label{font-size:11.5px;color:var(--ink-3)}
   .qa-tabs{display:flex;gap:6px;margin-bottom:16px}
   .qa-tabs button{flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink-2);font-family:var(--body);font-size:13px;cursor:pointer;font-weight:500}
   .qa-tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
@@ -803,13 +806,15 @@ function resolveCat(selId, listKey){
    Dashboard
    ========================================================= */
 function gaugeSVG(score){
-  const r=53, c=2*Math.PI*r, frac=score/100;
+  const r=60, c=2*Math.PI*r, frac=score/100;
   const col = score>=70?'var(--brand)':score>=45?'var(--warn)':'var(--neg)';
-  return `<svg width="138" height="138" viewBox="0 0 138 138" class="gauge-svg">
-    <circle cx="69" cy="69" r="${r}" fill="none" stroke="var(--gauge-track)" stroke-width="10"/>
-    <circle cx="69" cy="69" r="${r}" fill="none" stroke="${col}" stroke-width="10"
+  const trackW=12, arcW=12;
+  return `<svg width="160" height="160" viewBox="0 0 160 160">
+    <circle cx="80" cy="80" r="${r}" fill="none" stroke="var(--gauge-track)" stroke-width="${trackW}"/>
+    <circle cx="80" cy="80" r="${r}" fill="none" stroke="${col}" stroke-width="${arcW}"
       stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-frac)}"
-      transform="rotate(-90 69 69)"/></svg>`;
+      transform="rotate(-90 80 80)"/>
+  </svg>`;
 }
 function stat(label,value,cls,sub,icon,col,bg){
   return `<div class="card stat">
@@ -839,12 +844,21 @@ function viewDash(){
 
   <div class="grid g-2" style="margin-bottom:16px">
     <div class="card pad-lg">
-      <h3>আর্থিক স্বাস্থ্য স্কোর</h3>
-      <div class="health">
-        <div class="gauge">${gaugeSVG(h.score)}<div class="score"><b>${h.score}</b><small>১০০-এর মধ্যে</small></div></div>
-        <div class="health-notes">
-          ${h.notes.map(n=>`<div class="hnote"><span class="dot" style="background:var(--${n[0]})"></span>${n[1]}</div>`).join('')}
+      <h3 style="margin-bottom:14px">আর্থিক স্বাস্থ্য স্কোর</h3>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0;margin-bottom:14px">
+        <div style="position:relative;width:160px;height:160px">
+          ${gaugeSVG(h.score)}
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+            <span style="font-family:var(--mono);font-size:42px;font-weight:700;line-height:1;color:var(--ink)">${h.score}</span>
+            <span style="font-size:12px;color:var(--ink-3)">/ ১০০</span>
+          </div>
         </div>
+        <div style="margin-top:8px;padding:5px 16px;border-radius:20px;font-size:13px;font-weight:600;background:${h.score>=70?'var(--brand-bg)':h.score>=45?'var(--warn-bg)':'var(--neg-bg)'};color:${h.score>=70?'var(--brand-d)':h.score>=45?'var(--warn-d)':'var(--neg)'}">
+          ${h.score>=70?'✅ ভালো':h.score>=45?'⚠️ মোটামুটি':'❌ দুর্বল'}
+        </div>
+      </div>
+      <div class="health-notes">
+        ${h.notes.map(n=>`<div class="hnote"><span class="dot" style="background:var(--${n[0]})"></span>${n[1]}</div>`).join('')}
       </div>
     </div>
     <div class="card pad-lg">
