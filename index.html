@@ -696,8 +696,8 @@ const PAGES = [
   {id:'goals', label:'সঞ্চয় ও লক্ষ্য', short:'লক্ষ্য', group:'grow'},
   {id:'invest', label:'বিনিয়োগ', short:'বিনিয়োগ', group:'grow'},
   {id:'emergency', label:'ইমারজেন্সি ফান্ড', short:'ইমারজেন্সি', group:'grow'},
-  {id:'retire', label:'রিটায়ারমেন্ট', short:'রিটায়ার', group:'grow'},
   {id:'debt', label:'ঋণ ব্যবস্থাপনা', short:'ঋণ', group:'manage'},
+  {id:'report', label:'খরচ বিশ্লেষণ', short:'বিশ্লেষণ', group:'track'},
 ];
 const GROUPS = {overview:'',track:'রেকর্ড',grow:'গড়ে তুলুন',manage:'ব্যবস্থাপনা'};
 let current='dash';
@@ -775,9 +775,9 @@ function render(){
   const v=document.getElementById('view');
   v.innerHTML = reminderBanner() + ({
     dash:viewDash, coach:viewCoach, plan:viewPlan, compare:viewCompare, reminders:viewReminders, guide:viewGuide, accounts:viewAccounts, income:viewIncome, expense:viewExpense, budget:viewBudget,
-    goals:viewGoals, invest:viewInvest, emergency:viewEmergency, retire:viewRetire,
+    goals:viewGoals, invest:viewInvest, emergency:viewEmergency,
     debt:viewDebt, acctview:viewAccountDetail, recurring:viewRecurring, bills:viewBills,
-    heatmap:viewHeatmap, challenge:viewChallenge, profiles:viewProfiles
+    heatmap:viewHeatmap, challenge:viewChallenge, profiles:viewProfiles, report:viewReport
   })[current]();
   bindView();
 }
@@ -2229,7 +2229,11 @@ function bindView(){
   on('theme-btn','onclick',async()=>{ SET.theme = effectiveDark()?'light':'dark'; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-theme-opt]').forEach(b=>b.onclick=async()=>{ SET.theme=b.dataset.themeOpt; applyTheme(); await saveSettings(); render(); });
   document.querySelectorAll('[data-accent]').forEach(b=>b.onclick=async()=>{ SET.accentColor=b.dataset.accent; applyTheme(); await saveSettings(); render(); });
-  // Heatmap day click
+  // Report filters
+  on('rp-apply','onclick',()=>{
+    reportFrom=val('rp-from'); reportTo=val('rp-to'); reportCat=val('rp-cat'); render();
+  });
+  on('rp-reset','onclick',()=>{ reportFrom=''; reportTo=''; reportCat=''; render(); });
   document.querySelectorAll('[data-hm-day]').forEach(el=>{
     el.onclick=(e)=>{
       e.stopPropagation();
@@ -2382,7 +2386,7 @@ function viewReminders(){
   <div class="card pad-lg" style="margin-bottom:16px">
     <h3>ফোনের ক্যালেন্ডারে রিমাইন্ডার যোগ করুন ★</h3>
     <p style="font-size:13.5px;color:var(--ink-2);margin-bottom:12px;line-height:1.7">সবচেয়ে নির্ভরযোগ্য উপায় — <b>অ্যাপ বন্ধ থাকলেও</b> ফোনের ক্যালেন্ডার ঠিক সময়ে নোটিফিকেশন দেবে। বাটনে চাপলে একটি ফাইল নামবে; সেটি খুললে Google/Apple ক্যালেন্ডারে রিমাইন্ডারগুলো যুক্ত হবে — <b>প্রতিদিন</b> এন্ট্রির জন্য (আপনার নির্ধারিত সময়ে) এবং <b>প্রতি মাসের ২৮ তারিখ ও শেষ দিনে</b> ব্যাকআপের জন্য।</p>
-    <button class="btn" id="rm-ics">${ICONS.cal} ক্যালেন্ডার রিমাইন্ডার ফাইল নামান</button>
+    <button class="btn" id="rm-ics" style="white-space:normal;height:auto;padding:10px 16px;text-align:left;line-height:1.5">${ICONS.cal} ক্যালেন্ডার রিমাইন্ডার ফাইল নামান</button>
   </div>
   <div class="card pad-lg" style="margin-bottom:16px">
     <h3>ব্রাউজার নোটিফিকেশন (ঐচ্ছিক)</h3>
@@ -2931,6 +2935,100 @@ function viewProfiles(){
     </div>`).join('')}
   </div>
   <div class="alert tip" style="margin-top:16px"><span class="ai">i</span><div>প্রোফাইল সুইচ করলে সেই ব্যক্তির সব হিসাব আলাদাভাবে লোড হবে। প্রতিটি প্রোফাইলের জন্য আলাদা ব্যাকআপ নিন।</div></div>`;
+}
+
+/* =========================================================
+   Report — খরচ বিশ্লেষণ (কাস্টম তারিখ ও খাত)
+   ========================================================= */
+let reportFrom='', reportTo='', reportCat='';
+function viewReport(){
+  const allCats=[...new Set((S.expenses||[]).map(x=>x.category))].sort();
+  // Apply filters
+  let list=(S.expenses||[]).filter(x=>{
+    if(reportFrom && x.date<reportFrom) return false;
+    if(reportTo && x.date>reportTo) return false;
+    if(reportCat && x.category!==reportCat) return false;
+    return true;
+  });
+  list=byDateDesc(list);
+  const total=sum(list,x=>x.amount);
+  const essTotal=sum(list.filter(x=>expPrio(x)==='essential'),x=>x.amount);
+  const flexTotal=sum(list.filter(x=>expPrio(x)==='flexible'),x=>x.amount);
+  const optTotal=sum(list.filter(x=>expPrio(x)==='optional'),x=>x.amount);
+  // By category breakdown
+  const byCat={};
+  list.forEach(x=>{ byCat[x.category]=(byCat[x.category]||0)+x.amount; });
+  const catRows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  // Days range label
+  let rangeLabel='সব সময়';
+  if(reportFrom&&reportTo) rangeLabel=`${fmtDate(reportFrom)} — ${fmtDate(reportTo)}`;
+  else if(reportFrom) rangeLabel=`${fmtDate(reportFrom)} থেকে`;
+  else if(reportTo) rangeLabel=`${fmtDate(reportTo)} পর্যন্ত`;
+  const maxCat=catRows[0]?.[1]||1;
+  return topbar('খরচ বিশ্লেষণ','কাস্টম তারিখ ও খাত অনুযায়ী খরচ বিশ্লেষণ করুন') +
+  `<div class="card pad-lg" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">ফিল্টার করুন</h3>
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="field sm"><label>শুরুর তারিখ</label><input id="rp-from" type="date" value="${reportFrom}"></div>
+      <div class="field sm"><label>শেষের তারিখ</label><input id="rp-to" type="date" value="${reportTo}"></div>
+      <div class="field"><label>খরচের খাত</label>
+        <select id="rp-cat">
+          <option value="">— সব খাত —</option>
+          ${allCats.map(c=>`<option value="${esc(c)}"${reportCat===c?' selected':''}>${esc(c)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="rp-apply">বিশ্লেষণ করুন</button>
+      <button class="btn ghost" id="rp-reset">রিসেট</button>
+    </div>
+  </div>
+
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <div>
+        <h3 style="margin:0">ফলাফল</h3>
+        <div style="font-size:12.5px;color:var(--ink-3);margin-top:3px">${rangeLabel}${reportCat?' · '+esc(reportCat):''} · ${list.length}টি এন্ট্রি</div>
+      </div>
+      <div class="num neg" style="font-size:22px;font-weight:700">${bdt(total)}</div>
+    </div>
+    ${list.length?`
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="flex:1;min-width:100px;padding:10px;border-radius:8px;background:var(--brand-bg);text-align:center">
+        <div style="font-size:11px;color:var(--brand-d);font-weight:600;margin-bottom:3px">আবশ্যক</div>
+        <div class="num" style="font-weight:700;color:var(--brand-d)">${bdt(essTotal)}</div>
+      </div>
+      <div style="flex:1;min-width:100px;padding:10px;border-radius:8px;background:var(--blue-bg);text-align:center">
+        <div style="font-size:11px;color:var(--blue);font-weight:600;margin-bottom:3px">মাঝামাঝি</div>
+        <div class="num" style="font-weight:700;color:var(--blue)">${bdt(flexTotal)}</div>
+      </div>
+      <div style="flex:1;min-width:100px;padding:10px;border-radius:8px;background:var(--warn-bg);text-align:center">
+        <div style="font-size:11px;color:var(--warn-d);font-weight:600;margin-bottom:3px">অনাবশ্যক</div>
+        <div class="num" style="font-weight:700;color:var(--warn-d)">${bdt(optTotal)}</div>
+      </div>
+    </div>
+    ${catRows.length>1?`<h3 style="margin-bottom:10px;font-size:14px">খাত অনুযায়ী ভাঙ্গন</h3>
+    ${catRows.map(([cat,amt])=>`<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+        <span style="font-weight:600">${esc(cat)}</span>
+        <span class="num" style="color:var(--neg);font-weight:700">${bdt(amt)} <span style="color:var(--ink-3);font-weight:400">(${total>0?(amt/total*100).toFixed(0):0}%)</span></span>
+      </div>
+      <div style="background:var(--line);border-radius:4px;height:6px">
+        <div style="width:${(amt/maxCat*100).toFixed(1)}%;background:var(--neg);height:6px;border-radius:4px"></div>
+      </div>
+    </div>`).join('')}`:''}
+    <h3 style="margin-bottom:10px;font-size:14px;margin-top:${catRows.length>1?16:0}px">বিস্তারিত তালিকা</h3>
+    <table><thead><tr><th>তারিখ</th><th>খাত</th><th>ধরন</th><th class="r">পরিমাণ</th></tr></thead><tbody>
+    ${list.map(x=>`<tr>
+      <td class="num" style="color:var(--ink-3);white-space:nowrap">${fmtDate(x.date)}</td>
+      <td>${esc(x.category)}${x.note?`<div class="rownote">${esc(x.note)}</div>`:''}</td>
+      <td><span class="tag ${PRIO_CLASS[expPrio(x)]}">${PRIO[expPrio(x)]}</span></td>
+      <td class="r num">${bdt(x.amount)}</td>
+    </tr>`).join('')}
+    </tbody>
+    <tfoot><tr><td colspan="3" style="font-weight:600">মোট</td><td class="r num neg" style="font-weight:700">${bdt(total)}</td></tr></tfoot>
+    </table>`:`<div class="empty">এই ফিল্টারে কোনো খরচ নেই।<br><small>তারিখ বা খাত বদলে আবার চেষ্টা করুন।</small></div>`}
+  </div>`;
 }
 
 /* ---------- boot ---------- */
