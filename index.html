@@ -1996,7 +1996,12 @@ async function delItem(arrName,itemId){
 function bindView(){
   document.querySelectorAll('[data-del]').forEach(b=>{ b.onclick=(e)=>{ e.stopPropagation(); confirmDelete(()=>delItem(b.dataset.del,b.dataset.id)); }; });
   document.querySelectorAll('[data-acct]').forEach(c=>{ c.onclick=()=>openAccount(c.dataset.acct); });
-  document.querySelectorAll('.calc').forEach(inp=>{ inp.onblur=()=>{ const v=String(inp.value).trim(); if(v && /[+\-*/×÷]/.test(v.slice(1))){ const r=evalAmount(v); if(isFinite(r)) inp.value=String(Math.round(r*100)/100); } }; });
+  document.querySelectorAll('.calc').forEach(inp=>{ inp.onblur=()=>{
+    const v=String(inp.value).trim(); if(!v) return;
+    const r=evalAmount(v); if(!isFinite(r)||r===0) return;
+    // দশমিক থাকলে দুই ঘর, না থাকলে পূর্ণ সংখ্যা
+    inp.value = Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/\.?0+$/,'');
+  }; });
   const _ex=document.getElementById('export-btn'); if(_ex) _ex.onclick=exportData;
   const _gp=document.getElementById('goto-plan'); if(_gp) _gp.onclick=()=>go('plan');
   const _ap=document.getElementById('apply-plan'); if(_ap) _ap.onclick=()=>{ if(confirm('এই মাসের বরাদ্দকৃত টাকা ইমারজেন্সি ফান্ড, লক্ষ্য ও রিটায়ারমেন্টের জমায় যোগ হবে। নিশ্চিত?')) applyPlan(); };
@@ -2341,10 +2346,11 @@ function evalAmount(raw){
   let s=bnToEn(String(raw)).trim();
   if(!s) return 0;
   s=s.replace(/^=/,'').replace(/,/g,'').replace(/\s+/g,'').replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-');
+  let result=0;
   if(/^[0-9+\-*/().]+$/.test(s)){
-    try{ const r=Function('"use strict";return ('+s+')')(); if(typeof r==='number' && isFinite(r)) return r; }catch(e){}
-  }
-  const p=parseFloat(s); return isFinite(p)?p:0;
+    try{ const r=Function('"use strict";return ('+s+')')(); if(typeof r==='number' && isFinite(r)) result=r; }catch(e){ const p=parseFloat(s); result=isFinite(p)?p:0; }
+  } else { const p=parseFloat(s); result=isFinite(p)?p:0; }
+  return Math.round(result*100)/100; // দশমিকের পর সর্বোচ্চ ২ ঘর
 }
 function numv(idn){const e=document.getElementById(idn);return e?evalAmount(e.value):0;}
 function flash(idn){const e=document.getElementById(idn);if(e){e.style.borderColor='var(--neg)';setTimeout(()=>e.style.borderColor='',900);}}
