@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="FinMate"><meta name="theme-color" content="#0b6e4f"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="FinMate"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6e4f'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E">
 <title>FinMate — ব্যক্তিগত অর্থ ব্যবস্থাপনা</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2508,8 +2507,45 @@ function showLock(mode){
 function removeLock(){
   const el=document.getElementById('lockscreen'); if(el) el.remove();
   document.body.classList.remove('locked'); pinEntry=''; pinTemp='';
-  // show FAB after unlock
   const fab=document.getElementById('qa-fab'); if(fab) fab.style.display='flex';
+  // Show cloud login prompt if config set but not logged in
+  if(parseCfg() && !fbUser){ showCloudPrompt(); }
+}
+let _cloudPrompt=null;
+function showCloudPrompt(){
+  if(_cloudPrompt) return;
+  const overlay=document.createElement('div');
+  overlay.id='cloud-prompt';
+  overlay.style.cssText='position:fixed;inset:0;z-index:850;background:rgba(8,12,16,.6);display:flex;align-items:flex-end;justify-content:center;padding:20px;animation:fadeIn .2s';
+  overlay.innerHTML=`<div style="width:100%;max-width:440px;background:var(--surface);border-radius:16px 16px 16px 16px;padding:22px;box-shadow:0 -4px 32px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-weight:700;font-size:16px">☁️ ক্লাউড সিংক</div>
+      <button onclick="closeCloudPrompt()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-3);line-height:1">✕</button>
+    </div>
+    <p style="font-size:13.5px;color:var(--ink-2);line-height:1.6;margin-bottom:14px">ডেটা সুরক্ষিত রাখতে লগইন করুন। Chrome History মুছলেও বা ফোন বদলালেও ডেটা থাকবে।</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+      <input id="cp-uid" placeholder="ইউজার আইডি" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px">
+      <input id="cp-pass" type="password" placeholder="পাসওয়ার্ড" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="doCloudPromptLogin()" style="flex:1;padding:10px;background:var(--brand);color:#fff;border:none;border-radius:8px;font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer">লগইন করুন</button>
+      <button onclick="closeCloudPrompt();go('cloud')" style="flex:1;padding:10px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;font-family:var(--body);font-size:14px;cursor:pointer">নতুন আইডি তৈরি</button>
+    </div>
+    <div style="text-align:center;margin-top:10px"><button onclick="closeCloudPrompt()" style="background:none;border:none;color:var(--ink-3);font-size:13px;cursor:pointer;font-family:var(--body)">এখন নয়</button></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  _cloudPrompt=overlay;
+  overlay.onclick=(e)=>{ if(e.target===overlay) closeCloudPrompt(); };
+}
+function closeCloudPrompt(){
+  if(_cloudPrompt){ _cloudPrompt.remove(); _cloudPrompt=null; }
+}
+async function doCloudPromptLogin(){
+  const u=document.getElementById('cp-uid')?.value?.trim();
+  const p=document.getElementById('cp-pass')?.value;
+  if(!u||!p){ alert('আইডি ও পাসওয়ার্ড দিন।'); return; }
+  closeCloudPrompt();
+  await cloudLogin(toUserEmail(u),p);
 }
 function refreshDots(err){
   const d=document.getElementById('pin-dots'); if(d) d.outerHTML=pinDots();
