@@ -2241,8 +2241,9 @@ function bindView(){
       el.select(); document.execCommand('copy'); alert('Config কপি হয়েছে ✓');
     });
   });
-  on('cl-cfg-save','onclick',async()=>{ const raw=val('cl-cfg').trim(); let c; try{ c=coerceConfig(raw); JSON.parse(c); }catch(e){ return alert('কনফিগ পড়া গেল না।'); } SET.firebaseConfig=c; await saveSettings(); fb=null; render(); });
-  on('cl-cfg-edit','onclick',async()=>{ SET.firebaseConfig=''; await saveSettings(); fb=null; render(); });
+  on('cl-cfg-save','onclick',async()=>{ const raw=val('cl-cfg').trim(); let c; try{ c=coerceConfig(raw); JSON.parse(c); }catch(e){ return alert('কনফিগ পড়া গেল না।'); } SET.firebaseConfig=c; clEditing=false; await saveSettings(); fb=null; render(); });
+  on('cl-cfg-edit','onclick',()=>{ clEditing=true; render(); });
+  on('cl-cfg-cancel','onclick',()=>{ clEditing=false; render(); });
   on('cl-login','onclick',()=>{ const u=val('cl-uid').trim(),p=val('cl-pass'); if(!u||!p) return alert('আইডি ও পাসওয়ার্ড দিন।'); cloudLogin(toUserEmail(u),p); });
   on('cl-signup','onclick',()=>{ const u=val('cl-uid').trim(),p=val('cl-pass'); if(!u||p.length<6) return alert('আইডি দিন এবং পাসওয়ার্ড ৬+ অক্ষরের রাখুন।'); cloudSignup(toUserEmail(u),p); });
   on('cl-logout','onclick',cloudLogout);
@@ -3082,7 +3083,7 @@ function viewReport(){
 /* =========================================================
    Cloud Sync — Firebase Authentication + Firestore
    ========================================================= */
-let fb=null, fbUser=null, fbBusy=false;
+let fb=null, fbUser=null, fbBusy=false, clEditing=false;
 const FB_CDN='https://www.gstatic.com/firebasejs/10.12.2/';
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('load failed')); document.head.appendChild(s); }); }
 async function initFirebase(){
@@ -3165,18 +3166,27 @@ function viewCloud(){
       <div class="hint" style="margin-top:10px">আপনার ডেটা স্বয়ংক্রিয়ভাবে ক্লাউডে সেভ হচ্ছে। যেকোনো ডিভাইসে এই আইডি দিয়ে লগইন করলেই সব তথ্য পাবেন।</div>
     </div>`;
   }
-  // Config section — always shown at bottom when config exists
-  const cfgSection = cfgRaw ? `
+  // Config section — always shown when config exists, or when no config yet
+  const cfgSection = cfgRaw && !clEditing ? `
   <div class="card pad-lg" style="margin-bottom:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <h3 style="margin:0">সংরক্ষিত Firebase Config</h3>
       <div style="display:flex;gap:6px">
         <button class="btn-sm" id="cl-cfg-copy">📋 কপি করুন</button>
-        <button class="btn-sm" id="cl-cfg-edit">বদলান</button>
+        <button class="btn-sm" id="cl-cfg-edit">✏️ বদলান</button>
       </div>
     </div>
     <textarea id="cl-cfg-display" rows="7" readonly style="width:100%;font-family:var(--mono);font-size:11.5px;background:var(--bg);color:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:10px;resize:none">${esc(cfgRaw)}</textarea>
     <div class="hint">নতুন ডিভাইসে এই config কপি করে "লগইন ও সিংক" পেজে বসান।</div>
+  </div>` : (clEditing || !cfgRaw) ? `
+  <div class="card pad-lg" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h3 style="margin:0">${cfgRaw?'Config আপডেট করুন':'Firebase Config বসান'}</h3>
+      ${cfgRaw?`<button class="btn-sm" id="cl-cfg-cancel">✕ বাতিল</button>`:''}
+    </div>
+    <textarea id="cl-cfg" rows="8" style="width:100%;font-family:var(--mono);font-size:12px">${esc(cfgRaw)}</textarea>
+    <button class="btn" id="cl-cfg-save" style="margin-top:10px">সংরক্ষণ করুন</button>
+    <div class="hint" style="margin-top:8px">Firebase থেকে পাওয়া firebaseConfig অংশটি হুবহু বসান।</div>
   </div>` : '';
   return topbar('লগইন ও সিংক','ডেটা ক্লাউডে সেভ করুন — যেকোনো ডিভাইস থেকে পান') + body + cfgSection +
   `<div class="alert tip"><span class="ai">i</span><div>লগইন ও সিংক ফিচার শুধু আপনার <b>লাইভ সাইটে</b> কাজ করবে — চ্যাটের প্রিভিউতে নয়।</div></div>`;
